@@ -69,68 +69,9 @@ export default function PixelCanvas() {
   useEffect(() => {
     if (connection && connection.chainId === 31337) {
       loadCanvasInfo();
-      // Load some initial pixels around center and corners to see if any exist
-      loadInitialPixels();
     }
   }, [connection]);
 
-  // Load initial pixels to check for existing content
-  const loadInitialPixels = async () => {
-    if (!connection || !canvasInfo) return;
-    
-    console.log('Loading initial pixels to find existing content...');
-    
-    try {
-      const contract = getPixelCanvasContract(connection);
-      
-      // Check a sampling of pixels across the canvas to find existing ones
-      const samplePixels = [];
-      const sampleSize = 100; // Check 100 random pixels
-      
-      for (let i = 0; i < sampleSize; i++) {
-        const randomId = Math.floor(Math.random() * canvasInfo.width * canvasInfo.height);
-        samplePixels.push(randomId);
-      }
-      
-      const pixelPromises = samplePixels.map(id => contract.getPixel(id));
-      const results = await Promise.all(pixelPromises);
-      
-      const newPixels = new Map(pixels);
-      let foundPixels = 0;
-      
-      results.forEach((result, index) => {
-        const id = samplePixels[index];
-        const [owner, lastPaid, color, team] = result;
-        
-        if (owner !== '0x0000000000000000000000000000000000000000') {
-          const x = id % canvasInfo.width;
-          const y = Math.floor(id / canvasInfo.width);
-          
-          newPixels.set(id, {
-            id,
-            owner,
-            lastPaid,
-            color: Number(color),
-            team: Number(team),
-            x,
-            y,
-          });
-          foundPixels++;
-          console.log('Found existing pixel:', id, 'at position:', x, y, 'color:', color.toString(16), 'team:', team);
-        }
-      });
-      
-      console.log(`Found ${foundPixels} existing pixels out of ${sampleSize} sampled`);
-      
-      if (foundPixels > 0) {
-        setPixels(newPixels);
-        console.log('Updated pixels map with existing content');
-      }
-      
-    } catch (error) {
-      console.error('Failed to load initial pixels:', error);
-    }
-  };
 
   const loadCanvasInfo = async () => {
     if (!connection) return;
@@ -163,10 +104,10 @@ export default function PixelCanvas() {
 
       console.log('Canvas info loaded:', info);
       
-      // After loading canvas info, try to load initial pixels if we haven't already
+      // After loading canvas info, automatically load all owned pixels if any exist
       if (info.redCount > 0 || info.blueCount > 0) {
-        console.log('Canvas has existing pixels, attempting to load them...');
-        setTimeout(() => loadInitialPixels(), 500);
+        console.log('Canvas has existing pixels, auto-loading them...');
+        setTimeout(() => findAllOwnedPixels(), 500);
       }
     } catch (error) {
       console.error('Failed to load canvas info:', error);
@@ -176,7 +117,7 @@ export default function PixelCanvas() {
 
   // Find all owned pixels efficiently using contract events
   const findAllOwnedPixels = async () => {
-    if (!connection || !canvasInfo) return;
+    if (!connection || !canvasInfo || isLoading) return;
     
     console.log('Finding all owned pixels using contract events...');
     setIsLoading(true);
