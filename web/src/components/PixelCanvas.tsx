@@ -335,7 +335,17 @@ export default function PixelCanvas() {
   // Canvas drawing (optimized for performance)
   const drawCanvas = useCallback(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !canvasInfo || !initialPixelsLoaded) return;
+    if (!canvas || !canvasInfo) return;
+    
+    // Don't render until initial pixels are loaded to prevent flashing
+    if (!initialPixelsLoaded) {
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.fillStyle = '#f8f9fa';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+      return;
+    }
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
@@ -488,6 +498,28 @@ export default function PixelCanvas() {
       document.body.style.cursor = 'default';
     }
   }, [isPanning]);
+
+  // Add wheel event listener for zoom with proper preventDefault
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const handleWheelEvent = (e: WheelEvent) => {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? 0.9 : 1.1;
+      const newScale = Math.max(0.1, Math.min(20, scale * delta));
+      setScale(newScale);
+      
+      // Constrain pan after zoom
+      setPan(prev => constrainPan(prev, newScale));
+    };
+
+    canvas.addEventListener('wheel', handleWheelEvent, { passive: false });
+    
+    return () => {
+      canvas.removeEventListener('wheel', handleWheelEvent);
+    };
+  }, [scale, constrainPan]);
 
   // Mouse event handlers
   const getPixelFromMouse = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -695,15 +727,6 @@ export default function PixelCanvas() {
     document.body.style.cursor = 'default'; // Reset cursor when leaving canvas
   };
 
-  const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
-    e.preventDefault();
-    const delta = e.deltaY > 0 ? 0.9 : 1.1;
-    const newScale = Math.max(0.1, Math.min(20, scale * delta));
-    setScale(newScale);
-    
-    // Constrain pan after zoom
-    setPan(prev => constrainPan(prev, newScale));
-  };
 
   // Buy pixels function
   const buyPixels = async () => {
@@ -888,9 +911,18 @@ export default function PixelCanvas() {
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
               onMouseLeave={handleMouseLeave}
-              onWheel={handleWheel}
               onContextMenu={(e) => e.preventDefault()}
             />
+            
+            {/* Loading Overlay */}
+            {!initialPixelsLoaded && (
+              <div className="absolute inset-0 bg-gray-50/80 dark:bg-gray-900/80 flex items-center justify-center">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">Loading pixels...</div>
+                </div>
+              </div>
+            )}
             
             {/* Hover Tooltip */}
             {hoveredOwner && hoveredOwnerStats && (
