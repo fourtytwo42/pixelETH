@@ -65,58 +65,6 @@ export default function PixelCanvas() {
   const [dragMode, setDragMode] = useState<'line' | 'rectangle'>('line');
   const [dragPath, setDragPath] = useState<Array<{ x: number, y: number }>>([]); // For line drawing
 
-  // Load canvas info and initial pixels
-  useEffect(() => {
-    if (connection && connection.chainId === 31337) {
-      loadCanvasInfo();
-    }
-  }, [connection]);
-
-  // Auto-load pixels when canvas info changes
-  useEffect(() => {
-    if (canvasInfo && (canvasInfo.redCount > 0 || canvasInfo.blueCount > 0) && !isLoading) {
-      console.log('Canvas info detected existing pixels, auto-loading them...');
-      findAllOwnedPixels();
-    }
-  }, [canvasInfo, isLoading, findAllOwnedPixels]);
-
-
-  const loadCanvasInfo = async () => {
-    if (!connection) return;
-
-    try {
-      const contract = getPixelCanvasContract(connection);
-      
-      const [width, height, basePrice, [redCount, blueCount]] = await Promise.all([
-        contract.width(),
-        contract.height(),
-        contract.basePrice(),
-        contract.getTeamCounts(),
-      ]);
-
-      const info: CanvasInfo = {
-        width: Number(width),
-        height: Number(height),
-        basePrice,
-        redCount: Number(redCount),
-        blueCount: Number(blueCount),
-      };
-
-      setCanvasInfo(info);
-      
-      // Update DOM elements for stats
-      document.getElementById('red-count')!.textContent = redCount.toString();
-      document.getElementById('blue-count')!.textContent = blueCount.toString();
-      document.getElementById('base-price')!.textContent = `${formatEther(basePrice)} ETH`;
-      document.getElementById('canvas-size')!.textContent = `${width} × ${height}`;
-
-      console.log('Canvas info loaded:', info);
-    } catch (error) {
-      console.error('Failed to load canvas info:', error);
-      setError('Failed to load canvas information');
-    }
-  };
-
   // Find all owned pixels efficiently using contract events
   const findAllOwnedPixels = useCallback(async () => {
     if (!connection || !canvasInfo || isLoading) return;
@@ -189,6 +137,57 @@ export default function PixelCanvas() {
       setIsLoading(false);
     }
   }, [connection, canvasInfo, isLoading]);
+
+  // Load canvas info and initial pixels
+  useEffect(() => {
+    if (connection && connection.chainId === 31337) {
+      loadCanvasInfo();
+    }
+  }, [connection]);
+
+  // Auto-load pixels when canvas info changes
+  useEffect(() => {
+    if (canvasInfo && (canvasInfo.redCount > 0 || canvasInfo.blueCount > 0) && !isLoading) {
+      console.log('Canvas info detected existing pixels, auto-loading them...');
+      findAllOwnedPixels();
+    }
+  }, [canvasInfo, isLoading, findAllOwnedPixels]);
+
+  const loadCanvasInfo = async () => {
+    if (!connection) return;
+
+    try {
+      const contract = getPixelCanvasContract(connection);
+      
+      const [width, height, basePrice, [redCount, blueCount]] = await Promise.all([
+        contract.width(),
+        contract.height(),
+        contract.basePrice(),
+        contract.getTeamCounts(),
+      ]);
+
+      const info: CanvasInfo = {
+        width: Number(width),
+        height: Number(height),
+        basePrice,
+        redCount: Number(redCount),
+        blueCount: Number(blueCount),
+      };
+
+      setCanvasInfo(info);
+      
+      // Update DOM elements for stats
+      document.getElementById('red-count')!.textContent = redCount.toString();
+      document.getElementById('blue-count')!.textContent = blueCount.toString();
+      document.getElementById('base-price')!.textContent = `${formatEther(basePrice)} ETH`;
+      document.getElementById('canvas-size')!.textContent = `${width} × ${height}`;
+
+      console.log('Canvas info loaded:', info);
+    } catch (error) {
+      console.error('Failed to load canvas info:', error);
+      setError('Failed to load canvas information');
+    }
+  };
 
   // Load pixel data for visible area (optimized with area checking)
   const loadPixels = useCallback(async (startX: number, startY: number, endX: number, endY: number, forceReload: boolean = false) => {
