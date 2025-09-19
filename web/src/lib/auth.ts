@@ -16,6 +16,9 @@ export type AccessTokenClaims = JWTPayload & {
   status: 'active' | 'suspended' | 'banned';
   ver: number;
   jti: string;
+  cryptoAddress?: string;
+  hardhatAccountIndex?: number;
+  preferredWalletType?: 'metamask' | 'hardhat-local';
 };
 
 export async function createAccessToken(claims: AccessTokenClaims): Promise<string> {

@@ -43,6 +43,19 @@ function getDb(): Database.Database {
 }
 
 function migrate(db: Database.Database): void {
+  // Add crypto fields to existing users table if they don't exist
+  try {
+    db.exec(`ALTER TABLE users ADD COLUMN crypto_address TEXT`);
+  } catch {} // Column already exists
+  
+  try {
+    db.exec(`ALTER TABLE users ADD COLUMN hardhat_account_index INTEGER`);
+  } catch {} // Column already exists
+  
+  try {
+    db.exec(`ALTER TABLE users ADD COLUMN preferred_wallet_type TEXT CHECK (preferred_wallet_type IN ('metamask','hardhat-local'))`);
+  } catch {} // Column already exists
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -63,6 +76,9 @@ function migrate(db: Database.Database): void {
       new_email_verification_sent_at TEXT,
       last_login_at TEXT,
       last_seen_at TEXT,
+      crypto_address TEXT,
+      hardhat_account_index INTEGER,
+      preferred_wallet_type TEXT CHECK (preferred_wallet_type IN ('metamask','hardhat-local')),
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
