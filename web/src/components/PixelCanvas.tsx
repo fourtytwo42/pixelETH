@@ -57,7 +57,7 @@ export default function PixelCanvas() {
   const [hoveredPixel, setHoveredPixel] = useState<number | null>(null);
   const [hoveredOwner, setHoveredOwner] = useState<string | null>(null);
   const [hoveredOwnerStats, setHoveredOwnerStats] = useState<{redCount: number, blueCount: number, totalCount: number} | null>(null);
-  const [scale, setScale] = useState(4);
+  const [scale, setScale] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [lastPanPoint, setLastPanPoint] = useState({ x: 0, y: 0 });
@@ -135,6 +135,49 @@ export default function PixelCanvas() {
     }
   }, [connection, canvasInfo, isLoading]);
 
+  // Initialize view to fit entire grid
+  const initializeView = useCallback(() => {
+    if (!canvasInfo) return;
+    
+    const canvasWidth = 600; // Canvas element width
+    const canvasHeight = 400; // Canvas element height
+    
+    // Calculate scale to fit entire grid in canvas
+    const scaleX = canvasWidth / canvasInfo.width;
+    const scaleY = canvasHeight / canvasInfo.height;
+    const fitScale = Math.min(scaleX, scaleY);
+    
+    // Center the grid in the canvas
+    const scaledGridWidth = canvasInfo.width * fitScale;
+    const scaledGridHeight = canvasInfo.height * fitScale;
+    const centerX = (canvasWidth - scaledGridWidth) / 2;
+    const centerY = (canvasHeight - scaledGridHeight) / 2;
+    
+    setScale(fitScale);
+    setPan({ x: centerX, y: centerY });
+  }, [canvasInfo]);
+
+  // Constrain pan to keep grid within canvas bounds
+  const constrainPan = useCallback((newPan: { x: number, y: number }, currentScale: number) => {
+    if (!canvasInfo) return newPan;
+    
+    const canvasWidth = 600;
+    const canvasHeight = 400;
+    const scaledGridWidth = canvasInfo.width * currentScale;
+    const scaledGridHeight = canvasInfo.height * currentScale;
+    
+    // Calculate bounds
+    const minX = Math.min(0, canvasWidth - scaledGridWidth);
+    const maxX = Math.max(0, canvasWidth - scaledGridWidth);
+    const minY = Math.min(0, canvasHeight - scaledGridHeight);
+    const maxY = Math.max(0, canvasHeight - scaledGridHeight);
+    
+    return {
+      x: Math.max(minX, Math.min(maxX, newPan.x)),
+      y: Math.max(minY, Math.min(maxY, newPan.y))
+    };
+  }, [canvasInfo]);
+
   // Load canvas info and initial pixels
   useEffect(() => {
     if (connection && connection.chainId === 31337) {
@@ -180,6 +223,9 @@ export default function PixelCanvas() {
       document.getElementById('blue-count')!.textContent = blueCount.toString();
       document.getElementById('base-price')!.textContent = `${formatEther(basePrice)} ETH`;
       document.getElementById('canvas-size')!.textContent = `${width} × ${height}`;
+      
+      // Initialize view to fit the grid
+      setTimeout(() => initializeView(), 100);
 
     } catch (error) {
       console.error('Failed to load canvas info:', error);
@@ -316,20 +362,30 @@ export default function PixelCanvas() {
       const gridStepX = Math.max(1, Math.ceil((visibleEndX - visibleStartX) / maxGridLines));
       const gridStepY = Math.max(1, Math.ceil((visibleEndY - visibleStartY) / maxGridLines));
       
+      // Calculate grid boundaries in canvas coordinates
+      const gridLeft = pan.x;
+      const gridTop = pan.y;
+      const gridRight = pan.x + canvasInfo.width * scale;
+      const gridBottom = pan.y + canvasInfo.height * scale;
+      
       for (let x = visibleStartX; x <= visibleEndX + 1; x += gridStepX) {
         const pixelX = x * scale + pan.x;
-        ctx.beginPath();
-        ctx.moveTo(pixelX, 0);
-        ctx.lineTo(pixelX, height);
-        ctx.stroke();
+        if (pixelX >= gridLeft && pixelX <= gridRight) {
+          ctx.beginPath();
+          ctx.moveTo(pixelX, Math.max(0, gridTop));
+          ctx.lineTo(pixelX, Math.min(height, gridBottom));
+          ctx.stroke();
+        }
       }
       
       for (let y = visibleStartY; y <= visibleEndY + 1; y += gridStepY) {
         const pixelY = y * scale + pan.y;
-        ctx.beginPath();
-        ctx.moveTo(0, pixelY);
-        ctx.lineTo(width, pixelY);
-        ctx.stroke();
+        if (pixelY >= gridTop && pixelY <= gridBottom) {
+          ctx.beginPath();
+          ctx.moveTo(Math.max(0, gridLeft), pixelY);
+          ctx.lineTo(Math.min(width, gridRight), pixelY);
+          ctx.stroke();
+        }
       }
     }
 
@@ -507,7 +563,7 @@ export default function PixelCanvas() {
     if (isPanning) {
       const deltaX = e.clientX - lastPanPoint.x;
       const deltaY = e.clientY - lastPanPoint.y;
-      setPan(prev => ({ x: prev.x + deltaX, y: prev.y + deltaY }));
+      setPan(prev => constrainPan({ x: prev.x + deltaX, y: prev.y + deltaY }, scale));
       setLastPanPoint({ x: e.clientX, y: e.clientY });
     } else if (isDragging && dragStart && canvasInfo) {
       // Update drag selection
@@ -586,7 +642,7 @@ export default function PixelCanvas() {
         }
       }
     }
-  }, [isPanning, lastPanPoint, isDragging, dragStart, canvasInfo, pan, scale, hoveredPixel, getPixelFromMouse, dragMode, dragPath, selectedPixels, selectedPixelColors, selectedColor, pixels, hoveredOwner]);
+  }, [isPanning, lastPanPoint, isDragging, dragStart, canvasInfo, pan, scale, hoveredPixel, getPixelFromMouse, dragMode, dragPath, selectedPixels, selectedPixelColors, selectedColor, pixels, hoveredOwner, constrainPan]);
 
   const handleMouseUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
     e.preventDefault();
@@ -642,7 +698,11 @@ export default function PixelCanvas() {
   const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
     e.preventDefault();
     const delta = e.deltaY > 0 ? 0.9 : 1.1;
-    setScale(prev => Math.max(1, Math.min(20, prev * delta)));
+    const newScale = Math.max(0.1, Math.min(20, scale * delta));
+    setScale(newScale);
+    
+    // Constrain pan after zoom
+    setPan(prev => constrainPan(prev, newScale));
   };
 
   // Buy pixels function
@@ -854,13 +914,21 @@ export default function PixelCanvas() {
             
             {/* Canvas Controls */}
             <div className="absolute top-2 right-2 flex gap-2">
-              <Button size="sm" onClick={() => setScale(prev => Math.min(20, prev * 1.2))}>
+              <Button size="sm" onClick={() => {
+                const newScale = Math.min(20, scale * 1.2);
+                setScale(newScale);
+                setPan(prev => constrainPan(prev, newScale));
+              }}>
                 +
               </Button>
-              <Button size="sm" onClick={() => setScale(prev => Math.max(1, prev * 0.8))}>
+              <Button size="sm" onClick={() => {
+                const newScale = Math.max(0.1, scale * 0.8);
+                setScale(newScale);
+                setPan(prev => constrainPan(prev, newScale));
+              }}>
                 -
               </Button>
-              <Button size="sm" onClick={() => { setScale(4); setPan({ x: 0, y: 0 }); }}>
+              <Button size="sm" onClick={() => initializeView()}>
                 Reset
               </Button>
               <Button 
