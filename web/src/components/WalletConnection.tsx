@@ -36,6 +36,17 @@ export default function WalletConnection() {
     };
 
     fetchBalance();
+
+    // Listen for faucet transactions to refresh balance
+    const handleFaucetTransaction = () => {
+      fetchBalance();
+    };
+
+    window.addEventListener('faucet-transaction-complete', handleFaucetTransaction);
+    
+    return () => {
+      window.removeEventListener('faucet-transaction-complete', handleFaucetTransaction);
+    };
   }, [connection]);
 
   const handleConnectMetaMask = async () => {

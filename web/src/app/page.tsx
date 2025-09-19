@@ -1,5 +1,6 @@
 import PixelCanvas from '@/components/PixelCanvas';
 import WalletConnection from '@/components/WalletConnection';
+import HardhatFaucet from '@/components/HardhatFaucet';
 import { Card, CardBody } from '@/components/ui/Card';
 
 export default function Home() {
@@ -20,6 +21,11 @@ export default function Home() {
           {/* Wallet Connection */}
           <div className="xl:col-span-1">
             <WalletConnection />
+            
+            {/* Hardhat Faucet */}
+            <div className="mt-4">
+              <HardhatFaucet />
+            </div>
             
             {/* Game Stats */}
             <Card className="mt-4">
