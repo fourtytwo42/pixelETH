@@ -185,20 +185,20 @@ export default function PixelCanvas() {
       const contract = getPixelCanvasContract(connection);
       const newPixels = new Map<number, Pixel>();
       
-      // Get all PixelsPurchased events from the contract
-      console.log('Querying PixelsPurchased events...');
-      const filter = contract.filters.PixelsPurchased();
+      // Get all PixelBought events from the contract
+      console.log('Querying PixelBought events...');
+      const filter = contract.filters.PixelBought();
       const events = await contract.queryFilter(filter, 0);
       
-      console.log(`Found ${events.length} purchase events`);
+      console.log(`Found ${events.length} pixel purchase events`);
       
       // Extract unique pixel IDs from all events
       const pixelIds = new Set<number>();
       events.forEach(event => {
-        const pixelIdsArray = event.args?.pixelIds || [];
-        pixelIdsArray.forEach((id: any) => {
-          pixelIds.add(Number(id));
-        });
+        const pixelId = event.args?.id;
+        if (pixelId !== undefined) {
+          pixelIds.add(Number(pixelId));
+        }
       });
       
       console.log(`Total unique pixels purchased: ${pixelIds.size}`);
