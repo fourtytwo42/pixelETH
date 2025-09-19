@@ -58,7 +58,7 @@ export default function PixelCanvas() {
   const [hoveredPixel, setHoveredPixel] = useState<number | null>(null);
   const [hoveredOwner, setHoveredOwner] = useState<string | null>(null);
   const [hoveredOwnerStats, setHoveredOwnerStats] = useState<{redCount: number, blueCount: number, totalCount: number} | null>(null);
-  const [scale, setScale] = useState(1);
+  const [scale, setScale] = useState(0.31); // Start with a scale that roughly fits 1920x1080 in 600x400
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [lastPanPoint, setLastPanPoint] = useState({ x: 0, y: 0 });
@@ -124,7 +124,6 @@ export default function PixelCanvas() {
         });
       }
       
-      console.log('Setting pixels map with', newPixels.size, 'pixels');
       setPixels(newPixels);
       setInitialPixelsLoaded(true);
       
@@ -190,11 +189,9 @@ export default function PixelCanvas() {
   // Auto-load pixels when canvas info changes
   useEffect(() => {
     if (canvasInfo && (canvasInfo.redCount > 0 || canvasInfo.blueCount > 0) && !isLoadingPixels && !initialPixelsLoaded) {
-      console.log('Auto-loading pixels...', { redCount: canvasInfo.redCount, blueCount: canvasInfo.blueCount });
       findAllOwnedPixels();
     } else if (canvasInfo && canvasInfo.redCount === 0 && canvasInfo.blueCount === 0) {
       // No pixels to load, mark as loaded
-      console.log('No pixels to load, marking as loaded');
       setInitialPixelsLoaded(true);
     }
   }, [canvasInfo, isLoadingPixels, findAllOwnedPixels, initialPixelsLoaded]);
@@ -245,7 +242,6 @@ export default function PixelCanvas() {
     
     // If we already loaded all pixels via findAllOwnedPixels, don't do incremental loading
     if (initialPixelsLoaded && !forceReload) {
-      console.log('loadPixels: Skipping - already have complete pixel set');
       return;
     }
 
@@ -308,10 +304,7 @@ export default function PixelCanvas() {
 
       // Only update pixels if we actually loaded new data and it's not conflicting with existing data
       if (newPixels.size > pixels.size || forceReload) {
-        console.log('loadPixels: Updating pixel map from', pixels.size, 'to', newPixels.size, 'pixels');
         setPixels(newPixels);
-      } else {
-        console.log('loadPixels: Skipping update - would reduce pixel count from', pixels.size, 'to', newPixels.size);
       }
       setLastLoadedArea({ startX, startY, endX, endY });
     } catch (error) {
@@ -785,8 +778,7 @@ export default function PixelCanvas() {
       setSelectedPixels(new Set());
       setSelectedPixelColors(new Map());
       
-      // Force reload pixels by clearing cache and loaded area  
-      console.log('Clearing pixels after purchase');
+      // Force reload pixels by clearing cache and loaded area
       setPixels(new Map());
       setInitialPixelsLoaded(false);
       setIsLoadingPixels(false);
@@ -988,7 +980,6 @@ export default function PixelCanvas() {
                 size="sm" 
                 variant="secondary"
                 onClick={() => {
-                  console.log('Refresh button clicked - clearing pixels');
                   setPixels(new Map());
                   setInitialPixelsLoaded(false);
                   setIsLoadingPixels(false);
@@ -1012,7 +1003,8 @@ export default function PixelCanvas() {
                   <p>• <span className="text-green-400">Click+Drag:</span> Draw lines and shapes</p>
                   <p>• <span className="text-green-400">Shift+Drag:</span> Select rectangle area</p>
                   <p>• <span className="text-purple-400">Mouse Wheel:</span> Zoom in/out</p>
-                  <p>• <span className="text-purple-400">Right-click drag:</span> Pan canvas</p>
+                  <p>• <span className="text-purple-400">Middle-click drag:</span> Pan canvas</p>
+                  <p>• <span className="text-blue-400">+/- buttons:</span> Zoom controls</p>
                   <p>• <span className="text-yellow-400">Perfect for pixel art creation!</span></p>
                 </div>
               </div>
