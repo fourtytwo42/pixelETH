@@ -233,6 +233,19 @@ export default function PixelCanvas() {
     drawCanvas();
   }, [drawCanvas]);
 
+  // Cleanup cursor on component unmount or panning state change
+  useEffect(() => {
+    return () => {
+      document.body.style.cursor = 'default';
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isPanning) {
+      document.body.style.cursor = 'default';
+    }
+  }, [isPanning]);
+
   // Mouse event handlers
   const getPixelFromMouse = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
@@ -253,10 +266,12 @@ export default function PixelCanvas() {
   };
 
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    e.preventDefault(); // Prevent default browser behavior
+    
     if (e.button === 1 || e.ctrlKey) { // Middle mouse or Ctrl+click for panning
       setIsPanning(true);
       setLastPanPoint({ x: e.clientX, y: e.clientY });
-      e.preventDefault();
+      document.body.style.cursor = 'grabbing';
     } else if (e.button === 0) { // Left click for pixel selection
       const pixelId = getPixelFromMouse(e);
       if (pixelId !== null) {
@@ -286,8 +301,17 @@ export default function PixelCanvas() {
     }
   };
 
-  const handleMouseUp = () => {
+  const handleMouseUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
     setIsPanning(false);
+    document.body.style.cursor = 'default'; // Reset cursor
+  };
+
+  const handleMouseLeave = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    setIsPanning(false);
+    setHoveredPixel(null);
+    document.body.style.cursor = 'default'; // Reset cursor when leaving canvas
   };
 
   const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
@@ -430,6 +454,21 @@ export default function PixelCanvas() {
               ))}
             </div>
 
+            {/* Reset Selection Button */}
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                setSelectedPixels(new Set());
+                setHoveredPixel(null);
+                setIsPanning(false);
+                document.body.style.cursor = 'default';
+              }}
+              disabled={selectedPixels.size === 0}
+            >
+              Clear ({selectedPixels.size})
+            </Button>
+
             {/* Buy Button */}
             <Button
               onClick={buyPixels}
@@ -456,12 +495,13 @@ export default function PixelCanvas() {
               ref={canvasRef}
               width={800}
               height={600}
-              className="border border-gray-300 dark:border-gray-600 cursor-crosshair"
+              className="border border-gray-300 dark:border-gray-600 cursor-pointer select-none"
               onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
-              onMouseLeave={handleMouseUp}
+              onMouseLeave={handleMouseLeave}
               onWheel={handleWheel}
+              onContextMenu={(e) => e.preventDefault()}
             />
             
             {/* Canvas Controls */}
@@ -478,8 +518,13 @@ export default function PixelCanvas() {
             </div>
 
             {/* Instructions */}
-            <div className="absolute bottom-2 left-2 text-xs text-gray-600 dark:text-gray-400 bg-white/80 dark:bg-black/80 p-2 rounded">
-              <p>Click: Select pixel | Shift+Click: Multi-select | Scroll: Zoom | Ctrl+Drag: Pan</p>
+            <div className="absolute bottom-2 left-2 text-xs text-gray-600 dark:text-gray-400 bg-white/80 dark:bg-black/80 p-2 rounded max-w-xs">
+              <p><strong>Controls:</strong></p>
+              <p>• Left Click: Select pixel</p>
+              <p>• Shift+Click: Multi-select</p>
+              <p>• Mouse Wheel: Zoom in/out</p>
+              <p>• Ctrl+Drag: Pan canvas</p>
+              <p>• Use "Clear" button if cursor gets stuck</p>
             </div>
           </div>
         </CardBody>
