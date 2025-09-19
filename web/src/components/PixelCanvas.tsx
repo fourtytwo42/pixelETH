@@ -68,6 +68,7 @@ export default function PixelCanvas() {
   const [dragEnd, setDragEnd] = useState<{ x: number, y: number } | null>(null);
   const [dragMode, setDragMode] = useState<'line' | 'rectangle'>('line');
   const [dragPath, setDragPath] = useState<Array<{ x: number, y: number }>>([]); // For line drawing
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   // Find all owned pixels efficiently using contract events
   const findAllOwnedPixels = useCallback(async () => {
@@ -86,9 +87,8 @@ export default function PixelCanvas() {
       // Extract unique pixel IDs from all events
       const pixelIds = new Set<number>();
       events.forEach(event => {
-        const pixelId = event.args?.id;
-        if (pixelId !== undefined) {
-          pixelIds.add(Number(pixelId));
+        if ('args' in event && event.args?.id !== undefined) {
+          pixelIds.add(Number(event.args.id));
         }
       });
       
@@ -140,8 +140,9 @@ export default function PixelCanvas() {
   const initializeView = useCallback(() => {
     if (!canvasInfo) return;
     
-    const canvasWidth = 600; // Canvas element width
-    const canvasHeight = 400; // Canvas element height
+    // Get canvas dimensions based on fullscreen mode
+    const canvasWidth = isFullscreen ? window.innerWidth : 600;
+    const canvasHeight = isFullscreen ? window.innerHeight - 120 : 400; // Leave space for controls in fullscreen
     
     // Calculate scale to fit entire grid in canvas
     const scaleX = canvasWidth / canvasInfo.width;
@@ -156,14 +157,14 @@ export default function PixelCanvas() {
     
     setScale(fitScale);
     setPan({ x: centerX, y: centerY });
-  }, [canvasInfo]);
+  }, [canvasInfo, isFullscreen]);
 
   // Constrain pan to keep grid within canvas bounds
   const constrainPan = useCallback((newPan: { x: number, y: number }, currentScale: number) => {
     if (!canvasInfo) return newPan;
     
-    const canvasWidth = 600;
-    const canvasHeight = 400;
+    const canvasWidth = isFullscreen ? window.innerWidth : 600;
+    const canvasHeight = isFullscreen ? window.innerHeight - 120 : 400;
     const scaledGridWidth = canvasInfo.width * currentScale;
     const scaledGridHeight = canvasInfo.height * currentScale;
     
@@ -177,7 +178,7 @@ export default function PixelCanvas() {
       x: Math.max(minX, Math.min(maxX, newPan.x)),
       y: Math.max(minY, Math.min(maxY, newPan.y))
     };
-  }, [canvasInfo]);
+  }, [canvasInfo, isFullscreen]);
 
   // Load canvas info and initial pixels
   useEffect(() => {
@@ -195,6 +196,27 @@ export default function PixelCanvas() {
       setInitialPixelsLoaded(true);
     }
   }, [canvasInfo, isLoadingPixels, findAllOwnedPixels, initialPixelsLoaded]);
+
+  // ESC key handler for exiting fullscreen
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && isFullscreen) {
+        setIsFullscreen(false);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isFullscreen]);
+
+  // Re-initialize view when fullscreen mode changes
+  useEffect(() => {
+    if (canvasInfo) {
+      setTimeout(() => initializeView(), 100);
+    }
+  }, [isFullscreen, canvasInfo, initializeView]);
 
   const loadCanvasInfo = async (resetView: boolean = true) => {
     if (!connection) return;
@@ -755,7 +777,7 @@ export default function PixelCanvas() {
       const colors = pixelIds.map(id => selectedPixelColors.get(id) || selectedColor);
 
       // Calculate total cost
-      let totalCost = 0n;
+      let totalCost = BigInt(0);
       for (const id of pixelIds) {
         const price = await contract.quotePrice(id, selectedTeam);
         totalCost += price;
@@ -833,83 +855,206 @@ export default function PixelCanvas() {
     );
   }
 
-  return (
-    <div className="space-y-4">
-      {/* Controls */}
-      <Card>
-        <CardBody>
-          <div className="flex flex-wrap gap-4 items-center">
-            {/* Team Selection */}
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                variant={selectedTeam === 0 ? 'primary' : 'secondary'}
-                onClick={() => setSelectedTeam(0)}
-                className="bg-red-500 hover:bg-red-600"
-              >
-                🔴 Red Team
-              </Button>
-              <Button
-                size="sm"
-                variant={selectedTeam === 1 ? 'primary' : 'secondary'}
-                onClick={() => setSelectedTeam(1)}
-                className="bg-blue-500 hover:bg-blue-600"
-              >
-                🔵 Blue Team
-              </Button>
-            </div>
-
-            {/* Color Palette */}
-            <div className="flex flex-wrap gap-1">
-              {(selectedTeam === 0 ? COLORS.RED_TEAM : COLORS.BLUE_TEAM).map((color) => (
-                <button
-                  key={color}
-                  className={`w-6 h-6 rounded border-2 ${
-                    selectedColor === color ? 'border-black' : 'border-gray-300'
-                  }`}
-                  style={{ backgroundColor: `#${color.toString(16).padStart(6, '0')}` }}
-                  onClick={() => setSelectedColor(color)}
-                />
-              ))}
-            </div>
-
-            {/* Reset Selection Button */}
+  // Define controls component for reuse
+  const ControlsComponent = () => (
+    <Card>
+      <CardBody>
+        <div className="flex flex-wrap gap-4 items-center">
+          {/* Team Selection */}
+          <div className="flex gap-2">
             <Button
-              variant="secondary"
               size="sm"
-              onClick={() => {
-                setSelectedPixels(new Set());
-                setSelectedPixelColors(new Map());
-                setHoveredPixel(null);
-                setIsPanning(false);
-                setIsDragging(false);
-                setDragStart(null);
-                setDragEnd(null);
-                setDragPath([]);
-                document.body.style.cursor = 'default';
-              }}
-              disabled={selectedPixels.size === 0}
+              variant={selectedTeam === 0 ? 'primary' : 'secondary'}
+              onClick={() => setSelectedTeam(0)}
+              className="bg-red-500 hover:bg-red-600"
             >
-              Clear ({selectedPixels.size})
+              🔴 Red Team
             </Button>
-
-            {/* Buy Button */}
             <Button
-              onClick={buyPixels}
-              disabled={selectedPixels.size === 0 || isLoading}
-              className="ml-auto"
+              size="sm"
+              variant={selectedTeam === 1 ? 'primary' : 'secondary'}
+              onClick={() => setSelectedTeam(1)}
+              className="bg-blue-500 hover:bg-blue-600"
             >
-              {isLoading ? 'Buying...' : `Buy ${selectedPixels.size} Pixel${selectedPixels.size !== 1 ? 's' : ''}`}
+              🔵 Blue Team
             </Button>
           </div>
 
-          {error && (
-            <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-sm text-red-800 dark:text-red-200">
-              {error}
+          {/* Color Palette */}
+          <div className="flex flex-wrap gap-1">
+            {(selectedTeam === 0 ? COLORS.RED_TEAM : COLORS.BLUE_TEAM).map((color) => (
+              <button
+                key={color}
+                className={`w-6 h-6 rounded border-2 ${
+                  selectedColor === color ? 'border-black' : 'border-gray-300'
+                }`}
+                style={{ backgroundColor: `#${color.toString(16).padStart(6, '0')}` }}
+                onClick={() => setSelectedColor(color)}
+              />
+            ))}
+          </div>
+
+          {/* Reset Selection Button */}
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => {
+              setSelectedPixels(new Set());
+              setSelectedPixelColors(new Map());
+              setHoveredPixel(null);
+              setIsPanning(false);
+              setIsDragging(false);
+              setDragStart(null);
+              setDragEnd(null);
+              setDragPath([]);
+              document.body.style.cursor = 'default';
+            }}
+            disabled={selectedPixels.size === 0}
+          >
+            Clear ({selectedPixels.size})
+          </Button>
+
+          {/* Buy Button */}
+          <Button
+            onClick={buyPixels}
+            disabled={selectedPixels.size === 0 || isLoading}
+            className="ml-auto"
+          >
+            {isLoading ? 'Buying...' : `Buy ${selectedPixels.size} Pixel${selectedPixels.size !== 1 ? 's' : ''}`}
+          </Button>
+        </div>
+
+        {error && (
+          <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-sm text-red-800 dark:text-red-200">
+            {error}
+          </div>
+        )}
+      </CardBody>
+    </Card>
+  );
+
+  if (isFullscreen) {
+    return (
+      <div className="fixed inset-0 bg-white dark:bg-gray-900 z-50 flex flex-col">
+        {/* Controls at top in fullscreen */}
+        <div className="p-4">
+          <ControlsComponent />
+        </div>
+        
+        {/* Fullscreen Canvas */}
+        <div className="flex-1 relative">
+          <canvas
+            ref={canvasRef}
+            width={typeof window !== 'undefined' ? window.innerWidth : 1920}
+            height={typeof window !== 'undefined' ? window.innerHeight - 120 : 800}
+            className="border border-gray-300 dark:border-gray-600 cursor-pointer select-none"
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseLeave}
+            onContextMenu={(e) => e.preventDefault()}
+          />
+          
+          {/* Loading Overlay */}
+          {isLoadingPixels && (
+            <div className="absolute inset-0 bg-gray-50/80 dark:bg-gray-900/80 flex items-center justify-center">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">Loading pixels...</div>
+              </div>
             </div>
           )}
-        </CardBody>
-      </Card>
+          
+          {/* Hover Tooltip */}
+          {hoveredOwner && hoveredOwnerStats && (
+            <div className="absolute top-2 left-2 bg-black/80 text-white text-xs p-2 rounded shadow-lg pointer-events-none">
+              <div className="font-semibold mb-1">Owner: {hoveredOwner.slice(0, 6)}...{hoveredOwner.slice(-4)}</div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 bg-red-500 rounded"></div>
+                  <span>Red: {hoveredOwnerStats.redCount}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 bg-blue-500 rounded"></div>
+                  <span>Blue: {hoveredOwnerStats.blueCount}</span>
+                </div>
+                <div className="border-t border-gray-600 pt-1 mt-1">
+                  <span className="font-semibold">Total: {hoveredOwnerStats.totalCount}</span>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {/* Canvas Controls */}
+          <div className="absolute top-2 right-2 flex gap-2">
+            <Button size="sm" onClick={() => {
+              const newScale = Math.min(20, scale * 1.2);
+              setScale(newScale);
+              setPan(prev => constrainPan(prev, newScale));
+            }}>
+              +
+            </Button>
+            <Button size="sm" onClick={() => {
+              const newScale = Math.max(0.1, scale * 0.8);
+              setScale(newScale);
+              setPan(prev => constrainPan(prev, newScale));
+            }}>
+              -
+            </Button>
+            <Button size="sm" onClick={() => initializeView()}>
+              Reset
+            </Button>
+            <Button 
+              size="sm" 
+              variant="secondary"
+              onClick={() => {
+                setPixels(new Map());
+                setInitialPixelsLoaded(false);
+                setIsLoadingPixels(false);
+                setLastLoadedArea({ startX: -1, startY: -1, endX: -1, endY: -1 });
+                loadCanvasInfo(false); // Don't reset view on refresh
+              }}
+            >
+              Refresh
+            </Button>
+            {/* Exit Fullscreen Button */}
+            <Button 
+              size="sm" 
+              variant="secondary"
+              onClick={() => setIsFullscreen(false)}
+              title="Exit Fullscreen (ESC)"
+            >
+              ⛶
+            </Button>
+          </div>
+
+          {/* Hover Instructions */}
+          <div className="absolute bottom-2 left-2 group">
+            <div className="w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-bold cursor-help">
+              i
+            </div>
+            <div className="absolute bottom-8 left-0 invisible group-hover:visible bg-black/90 text-white text-xs p-3 rounded-lg shadow-lg min-w-64 z-10">
+              <p className="font-semibold mb-2 text-blue-400">Drawing Controls:</p>
+              <div className="space-y-1">
+                <p>• <span className="text-green-400">Click:</span> Set single pixel color</p>
+                <p>• <span className="text-green-400">Click+Drag:</span> Draw lines and shapes</p>
+                <p>• <span className="text-green-400">Shift+Drag:</span> Select rectangle area</p>
+                <p>• <span className="text-purple-400">Mouse Wheel:</span> Zoom in/out</p>
+                <p>• <span className="text-purple-400">Middle-click drag:</span> Pan canvas</p>
+                <p>• <span className="text-blue-400">+/- buttons:</span> Zoom controls</p>
+                <p>• <span className="text-yellow-400">Perfect for pixel art creation!</span></p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Controls */}
+      <ControlsComponent />
 
       {/* Canvas */}
       <Card>
@@ -988,6 +1133,15 @@ export default function PixelCanvas() {
                 }}
               >
                 Refresh
+              </Button>
+              {/* Enter Fullscreen Button */}
+              <Button 
+                size="sm" 
+                variant="secondary"
+                onClick={() => setIsFullscreen(true)}
+                title="Enter Fullscreen"
+              >
+                ⛶
               </Button>
             </div>
 
