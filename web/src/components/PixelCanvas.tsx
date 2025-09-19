@@ -58,6 +58,9 @@ export default function PixelCanvas() {
   const [isPanning, setIsPanning] = useState(false);
   const [lastPanPoint, setLastPanPoint] = useState({ x: 0, y: 0 });
   const [lastLoadedArea, setLastLoadedArea] = useState({ startX: -1, startY: -1, endX: -1, endY: -1 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState<{ x: number, y: number } | null>(null);
+  const [dragEnd, setDragEnd] = useState<{ x: number, y: number } | null>(null);
 
   // Load canvas info and initial pixels
   useEffect(() => {
@@ -229,19 +232,44 @@ export default function PixelCanvas() {
       }
     });
 
-    // Highlight selected pixels
+    // Show color preview for selected pixels
     if (selectedPixels.size > 0) {
-      ctx.strokeStyle = '#000000';
-      ctx.lineWidth = 2;
       selectedPixels.forEach((id) => {
         const x = id % canvasInfo.width;
         const y = Math.floor(id / canvasInfo.width);
         if (x >= visibleStartX && x <= visibleEndX && y >= visibleStartY && y <= visibleEndY) {
           const pixelX = x * scale + pan.x;
           const pixelY = y * scale + pan.y;
+          
+          // Show preview color with transparency
+          ctx.fillStyle = `#${selectedColor.toString(16).padStart(6, '0')}CC`; // Add CC for transparency
+          ctx.fillRect(pixelX, pixelY, scale, scale);
+          
+          // Add selection border
+          ctx.strokeStyle = selectedTeam === 0 ? '#FF0000' : '#0000FF';
+          ctx.lineWidth = 2;
           ctx.strokeRect(pixelX, pixelY, scale, scale);
         }
       });
+    }
+
+    // Show drag selection rectangle
+    if (isDragging && dragStart && dragEnd) {
+      const startPixelX = dragStart.x * scale + pan.x;
+      const startPixelY = dragStart.y * scale + pan.y;
+      const endPixelX = dragEnd.x * scale + pan.x;
+      const endPixelY = dragEnd.y * scale + pan.y;
+      
+      const rectX = Math.min(startPixelX, endPixelX);
+      const rectY = Math.min(startPixelY, endPixelY);
+      const rectWidth = Math.abs(endPixelX - startPixelX) + scale;
+      const rectHeight = Math.abs(endPixelY - startPixelY) + scale;
+      
+      ctx.strokeStyle = '#00FF00';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 5]);
+      ctx.strokeRect(rectX, rectY, rectWidth, rectHeight);
+      ctx.setLineDash([]); // Reset line dash
     }
 
     // Highlight hovered pixel
@@ -316,28 +344,40 @@ export default function PixelCanvas() {
       setLastPanPoint({ x: e.clientX, y: e.clientY });
       document.body.style.cursor = 'grabbing';
     } else if (e.button === 0) { // Left click for pixel selection
-      const pixelId = getPixelFromMouse(e);
-      if (pixelId !== null) {
-        console.log('Clicked pixel ID:', pixelId, 'at position:', pixelId % canvasInfo.width, Math.floor(pixelId / canvasInfo.width));
+      const canvas = canvasRef.current;
+      if (!canvas || !canvasInfo) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+      
+      const pixelX = Math.floor((mouseX - pan.x) / scale);
+      const pixelY = Math.floor((mouseY - pan.y) / scale);
+      
+      if (pixelX >= 0 && pixelX < canvasInfo.width && pixelY >= 0 && pixelY < canvasInfo.height) {
+        const pixelId = pixelY * canvasInfo.width + pixelX;
         
-        const newSelected = new Set(selectedPixels);
         if (e.shiftKey) {
-          // Add to selection or remove if already selected
+          // Start drag selection
+          setIsDragging(true);
+          setDragStart({ x: pixelX, y: pixelY });
+          setDragEnd({ x: pixelX, y: pixelY });
+        } else {
+          // Multi-select by default (additive selection unless clicking existing pixel)
+          const newSelected = new Set(selectedPixels);
           if (newSelected.has(pixelId)) {
-            newSelected.delete(pixelId);
-            console.log('Removed pixel from selection:', pixelId);
+            // If clicking an already selected pixel, replace selection with just this pixel
+            newSelected.clear();
+            newSelected.add(pixelId);
+            console.log('Replaced selection with single pixel:', pixelId);
           } else {
+            // Add to existing selection
             newSelected.add(pixelId);
             console.log('Added pixel to selection:', pixelId);
           }
-        } else {
-          // Replace selection
-          newSelected.clear();
-          newSelected.add(pixelId);
-          console.log('Selected single pixel:', pixelId);
+          setSelectedPixels(newSelected);
+          console.log('Total selected pixels:', newSelected.size, Array.from(newSelected));
         }
-        setSelectedPixels(newSelected);
-        console.log('Total selected pixels:', newSelected.size, Array.from(newSelected));
       }
     }
   };
@@ -348,6 +388,22 @@ export default function PixelCanvas() {
       const deltaY = e.clientY - lastPanPoint.y;
       setPan(prev => ({ x: prev.x + deltaX, y: prev.y + deltaY }));
       setLastPanPoint({ x: e.clientX, y: e.clientY });
+    } else if (isDragging && dragStart && canvasInfo) {
+      // Update drag selection
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+      
+      const pixelX = Math.floor((mouseX - pan.x) / scale);
+      const pixelY = Math.floor((mouseY - pan.y) / scale);
+      
+      const clampedX = Math.max(0, Math.min(canvasInfo.width - 1, pixelX));
+      const clampedY = Math.max(0, Math.min(canvasInfo.height - 1, pixelY));
+      
+      setDragEnd({ x: clampedX, y: clampedY });
     } else {
       // Throttle hover detection to improve performance
       const pixelId = getPixelFromMouse(e);
@@ -355,10 +411,36 @@ export default function PixelCanvas() {
         setHoveredPixel(pixelId);
       }
     }
-  }, [isPanning, lastPanPoint, hoveredPixel, getPixelFromMouse]);
+  }, [isPanning, lastPanPoint, isDragging, dragStart, canvasInfo, pan, scale, hoveredPixel, getPixelFromMouse]);
 
   const handleMouseUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
     e.preventDefault();
+    
+    if (isDragging && dragStart && dragEnd && canvasInfo) {
+      // Complete drag selection
+      const minX = Math.min(dragStart.x, dragEnd.x);
+      const maxX = Math.max(dragStart.x, dragEnd.x);
+      const minY = Math.min(dragStart.y, dragEnd.y);
+      const maxY = Math.max(dragStart.y, dragEnd.y);
+      
+      const newSelected = new Set(selectedPixels);
+      
+      for (let y = minY; y <= maxY; y++) {
+        for (let x = minX; x <= maxX; x++) {
+          const pixelId = y * canvasInfo.width + x;
+          newSelected.add(pixelId);
+        }
+      }
+      
+      setSelectedPixels(newSelected);
+      console.log('Drag selected area:', `(${minX}, ${minY}) to (${maxX}, ${maxY})`);
+      console.log('Total selected pixels after drag:', newSelected.size);
+      
+      setIsDragging(false);
+      setDragStart(null);
+      setDragEnd(null);
+    }
+    
     setIsPanning(false);
     document.body.style.cursor = 'default'; // Reset cursor
   };
@@ -366,6 +448,9 @@ export default function PixelCanvas() {
   const handleMouseLeave = (e: React.MouseEvent<HTMLCanvasElement>) => {
     e.preventDefault();
     setIsPanning(false);
+    setIsDragging(false);
+    setDragStart(null);
+    setDragEnd(null);
     setHoveredPixel(null);
     document.body.style.cursor = 'default'; // Reset cursor when leaving canvas
   };
@@ -518,6 +603,9 @@ export default function PixelCanvas() {
                 setSelectedPixels(new Set());
                 setHoveredPixel(null);
                 setIsPanning(false);
+                setIsDragging(false);
+                setDragStart(null);
+                setDragEnd(null);
                 document.body.style.cursor = 'default';
               }}
               disabled={selectedPixels.size === 0}
@@ -576,11 +664,12 @@ export default function PixelCanvas() {
             {/* Instructions */}
             <div className="absolute bottom-2 left-2 text-xs text-gray-600 dark:text-gray-400 bg-white/80 dark:bg-black/80 p-2 rounded max-w-xs">
               <p><strong>Controls:</strong></p>
-              <p>• Left Click: Select pixel</p>
-              <p>• Shift+Click: Multi-select</p>
+              <p>• Click: Add pixel to selection</p>
+              <p>• Click selected: Replace with single pixel</p>
+              <p>• Shift+Drag: Rectangle select (additive)</p>
               <p>• Mouse Wheel: Zoom in/out</p>
               <p>• Ctrl+Drag: Pan canvas</p>
-              <p>• Use "Clear" button if cursor gets stuck</p>
+              <p>• See color preview on selected pixels</p>
             </div>
           </div>
         </CardBody>
