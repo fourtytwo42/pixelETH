@@ -25,9 +25,7 @@ export default function WalletConnection() {
       try {
         const provider = getProvider(connection);
         const balanceBigInt = await provider.getBalance(connection.address);
-        console.log('Raw balance BigInt:', balanceBigInt.toString());
         const balanceFormatted = formatEther(balanceBigInt);
-        console.log('Formatted balance:', balanceFormatted);
         setBalance(balanceFormatted);
       } catch (error) {
         console.error('Failed to fetch balance:', error);

@@ -284,3 +284,8 @@ export function formatEther(wei: bigint): string {
 export function parseEther(eth: string): bigint {
   return ethers.parseEther(eth);
 }
+
+// Get provider from wallet connection
+export function getProvider(connection: WalletConnection): ethers.BrowserProvider | ethers.JsonRpcProvider {
+  return connection.provider;
+}
