@@ -25,7 +25,9 @@ export default function WalletConnection() {
       try {
         const provider = getProvider(connection);
         const balanceBigInt = await provider.getBalance(connection.address);
+        console.log('Raw balance BigInt:', balanceBigInt.toString());
         const balanceFormatted = formatEther(balanceBigInt);
+        console.log('Formatted balance:', balanceFormatted);
         setBalance(balanceFormatted);
       } catch (error) {
         console.error('Failed to fetch balance:', error);
@@ -105,8 +107,18 @@ export default function WalletConnection() {
               <p className="text-sm font-mono">
                 {isLoadingBalance ? (
                   <span className="text-gray-500">Loading...</span>
-                ) : balance ? (
-                  <span>{parseFloat(balance).toFixed(4)} ETH</span>
+                ) : balance && balance !== 'Error' ? (
+                  (() => {
+                    try {
+                      const numBalance = Number(balance);
+                      if (isNaN(numBalance)) {
+                        return <span className="text-red-500">Invalid Balance</span>;
+                      }
+                      return <span>{numBalance.toFixed(4)} ETH</span>;
+                    } catch (e) {
+                      return <span className="text-red-500">Format Error</span>;
+                    }
+                  })()
                 ) : (
                   <span className="text-red-500">Error</span>
                 )}
