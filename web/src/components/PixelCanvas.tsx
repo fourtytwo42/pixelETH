@@ -62,6 +62,8 @@ export default function PixelCanvas() {
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState<{ x: number, y: number } | null>(null);
   const [dragEnd, setDragEnd] = useState<{ x: number, y: number } | null>(null);
+  const [dragMode, setDragMode] = useState<'line' | 'rectangle'>('line');
+  const [dragPath, setDragPath] = useState<Array<{ x: number, y: number }>>([]); // For line drawing
 
   // Load canvas info and initial pixels
   useEffect(() => {
@@ -174,6 +176,37 @@ export default function PixelCanvas() {
     }
   }, [connection, canvasInfo, pixels, lastLoadedArea]);
 
+  // Bresenham's line algorithm for smooth line drawing
+  const getLinePixels = useCallback((x0: number, y0: number, x1: number, y1: number): Array<{ x: number, y: number }> => {
+    const pixels: Array<{ x: number, y: number }> = [];
+    const dx = Math.abs(x1 - x0);
+    const dy = Math.abs(y1 - y0);
+    const sx = x0 < x1 ? 1 : -1;
+    const sy = y0 < y1 ? 1 : -1;
+    let err = dx - dy;
+    
+    let x = x0;
+    let y = y0;
+    
+    while (true) {
+      pixels.push({ x, y });
+      
+      if (x === x1 && y === y1) break;
+      
+      const e2 = 2 * err;
+      if (e2 > -dy) {
+        err -= dy;
+        x += sx;
+      }
+      if (e2 < dx) {
+        err += dx;
+        y += sy;
+      }
+    }
+    
+    return pixels;
+  }, []);
+
   // Canvas drawing (optimized for performance)
   const drawCanvas = useCallback(() => {
     const canvas = canvasRef.current;
@@ -250,8 +283,8 @@ export default function PixelCanvas() {
       });
     }
 
-    // Show drag selection rectangle
-    if (isDragging && dragStart && dragEnd) {
+    // Show drag selection rectangle (only for rectangle mode)
+    if (isDragging && dragStart && dragEnd && dragMode === 'rectangle') {
       const startPixelX = dragStart.x * scale + pan.x;
       const startPixelY = dragStart.y * scale + pan.y;
       const endPixelX = dragEnd.x * scale + pan.x;
@@ -266,6 +299,30 @@ export default function PixelCanvas() {
       ctx.lineWidth = 2;
       ctx.setLineDash([5, 5]);
       ctx.strokeRect(rectX, rectY, rectWidth, rectHeight);
+      ctx.setLineDash([]); // Reset line dash
+    }
+
+    // Show line drawing preview (for line mode)
+    if (isDragging && dragMode === 'line' && dragPath.length > 1) {
+      ctx.strokeStyle = '#00FF00';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([3, 3]);
+      
+      ctx.beginPath();
+      const firstPoint = dragPath[0];
+      ctx.moveTo(firstPoint.x * scale + pan.x + scale/2, firstPoint.y * scale + pan.y + scale/2);
+      
+      for (let i = 1; i < dragPath.length; i++) {
+        const point = dragPath[i];
+        ctx.lineTo(point.x * scale + pan.x + scale/2, point.y * scale + pan.y + scale/2);
+      }
+      
+      // Add line to current mouse position if different from last point
+      if (dragEnd && (dragEnd.x !== dragPath[dragPath.length - 1].x || dragEnd.y !== dragPath[dragPath.length - 1].y)) {
+        ctx.lineTo(dragEnd.x * scale + pan.x + scale/2, dragEnd.y * scale + pan.y + scale/2);
+      }
+      
+      ctx.stroke();
       ctx.setLineDash([]); // Reset line dash
     }
 
@@ -289,7 +346,7 @@ export default function PixelCanvas() {
     }, 100);
 
     return () => clearTimeout(loadTimeout);
-  }, [canvasInfo, pixels, selectedPixels, hoveredPixel, scale, pan, loadPixels]);
+  }, [canvasInfo, pixels, selectedPixels, selectedPixelColors, hoveredPixel, scale, pan, loadPixels, isDragging, dragStart, dragEnd, dragMode, dragPath]);
 
   // Throttled redraw to improve performance
   useEffect(() => {
@@ -355,31 +412,31 @@ export default function PixelCanvas() {
         const pixelId = pixelY * canvasInfo.width + pixelX;
         
         if (e.shiftKey) {
-          // Start drag selection
+          // Start rectangle selection
           setIsDragging(true);
+          setDragMode('rectangle');
           setDragStart({ x: pixelX, y: pixelY });
           setDragEnd({ x: pixelX, y: pixelY });
+          setDragPath([]);
         } else {
-          // Multi-select by default (additive selection unless clicking existing pixel)
+          // Single click: set pixel color immediately or start line drawing
           const newSelected = new Set(selectedPixels);
           const newColors = new Map(selectedPixelColors);
           
-          if (newSelected.has(pixelId)) {
-            // If clicking an already selected pixel, replace selection with just this pixel
-            newSelected.clear();
-            newColors.clear();
-            newSelected.add(pixelId);
-            newColors.set(pixelId, selectedColor);
-            console.log('Replaced selection with single pixel:', pixelId);
-          } else {
-            // Add to existing selection with current color
-            newSelected.add(pixelId);
-            newColors.set(pixelId, selectedColor);
-            console.log('Added pixel to selection:', pixelId, 'with color:', selectedColor.toString(16));
-          }
+          // Single click behavior: just select the pixel
+          newSelected.add(pixelId);
+          newColors.set(pixelId, selectedColor);
           setSelectedPixels(newSelected);
           setSelectedPixelColors(newColors);
-          console.log('Total selected pixels:', newSelected.size, Array.from(newSelected));
+          
+          // Start line drawing mode
+          setIsDragging(true);
+          setDragMode('line');
+          setDragStart({ x: pixelX, y: pixelY });
+          setDragEnd({ x: pixelX, y: pixelY });
+          setDragPath([{ x: pixelX, y: pixelY }]);
+          
+          console.log('Started drawing at pixel:', pixelId, 'with color:', selectedColor.toString(16));
         }
       }
     }
@@ -407,6 +464,28 @@ export default function PixelCanvas() {
       const clampedY = Math.max(0, Math.min(canvasInfo.height - 1, pixelY));
       
       setDragEnd({ x: clampedX, y: clampedY });
+      
+      if (dragMode === 'line') {
+        // For line drawing, add intermediate pixels along the path
+        const newSelected = new Set(selectedPixels);
+        const newColors = new Map(selectedPixelColors);
+        
+        // Generate line from last point to current point using Bresenham's line algorithm
+        const lastPoint = dragPath[dragPath.length - 1];
+        if (lastPoint && (lastPoint.x !== clampedX || lastPoint.y !== clampedY)) {
+          const linePixels = getLinePixels(lastPoint.x, lastPoint.y, clampedX, clampedY);
+          
+          linePixels.forEach(point => {
+            const pixelId = point.y * canvasInfo.width + point.x;
+            newSelected.add(pixelId);
+            newColors.set(pixelId, selectedColor);
+          });
+          
+          setSelectedPixels(newSelected);
+          setSelectedPixelColors(newColors);
+          setDragPath([...dragPath, { x: clampedX, y: clampedY }]);
+        }
+      }
     } else {
       // Throttle hover detection to improve performance
       const pixelId = getPixelFromMouse(e);
@@ -414,37 +493,43 @@ export default function PixelCanvas() {
         setHoveredPixel(pixelId);
       }
     }
-  }, [isPanning, lastPanPoint, isDragging, dragStart, canvasInfo, pan, scale, hoveredPixel, getPixelFromMouse]);
+  }, [isPanning, lastPanPoint, isDragging, dragStart, canvasInfo, pan, scale, hoveredPixel, getPixelFromMouse, dragMode, dragPath, selectedPixels, selectedPixelColors, selectedColor]);
 
   const handleMouseUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
     e.preventDefault();
     
     if (isDragging && dragStart && dragEnd && canvasInfo) {
-      // Complete drag selection
-      const minX = Math.min(dragStart.x, dragEnd.x);
-      const maxX = Math.max(dragStart.x, dragEnd.x);
-      const minY = Math.min(dragStart.y, dragEnd.y);
-      const maxY = Math.max(dragStart.y, dragEnd.y);
-      
-      const newSelected = new Set(selectedPixels);
-      const newColors = new Map(selectedPixelColors);
-      
-      for (let y = minY; y <= maxY; y++) {
-        for (let x = minX; x <= maxX; x++) {
-          const pixelId = y * canvasInfo.width + x;
-          newSelected.add(pixelId);
-          newColors.set(pixelId, selectedColor); // Use current selected color for all drag-selected pixels
+      if (dragMode === 'rectangle') {
+        // Complete rectangle selection
+        const minX = Math.min(dragStart.x, dragEnd.x);
+        const maxX = Math.max(dragStart.x, dragEnd.x);
+        const minY = Math.min(dragStart.y, dragEnd.y);
+        const maxY = Math.max(dragStart.y, dragEnd.y);
+        
+        const newSelected = new Set(selectedPixels);
+        const newColors = new Map(selectedPixelColors);
+        
+        for (let y = minY; y <= maxY; y++) {
+          for (let x = minX; x <= maxX; x++) {
+            const pixelId = y * canvasInfo.width + x;
+            newSelected.add(pixelId);
+            newColors.set(pixelId, selectedColor);
+          }
         }
+        
+        setSelectedPixels(newSelected);
+        setSelectedPixelColors(newColors);
+        console.log('Rectangle selected area:', `(${minX}, ${minY}) to (${maxX}, ${maxY})`);
+        console.log('Total selected pixels after rectangle:', newSelected.size);
+      } else {
+        // Line drawing is already complete from mouse move events
+        console.log('Line drawing completed with', selectedPixels.size, 'pixels');
       }
-      
-      setSelectedPixels(newSelected);
-      setSelectedPixelColors(newColors);
-      console.log('Drag selected area:', `(${minX}, ${minY}) to (${maxX}, ${maxY})`);
-      console.log('Total selected pixels after drag:', newSelected.size);
       
       setIsDragging(false);
       setDragStart(null);
       setDragEnd(null);
+      setDragPath([]);
     }
     
     setIsPanning(false);
@@ -457,6 +542,7 @@ export default function PixelCanvas() {
     setIsDragging(false);
     setDragStart(null);
     setDragEnd(null);
+    setDragPath([]);
     setHoveredPixel(null);
     document.body.style.cursor = 'default'; // Reset cursor when leaving canvas
   };
@@ -616,6 +702,7 @@ export default function PixelCanvas() {
                 setIsDragging(false);
                 setDragStart(null);
                 setDragEnd(null);
+                setDragPath([]);
                 document.body.style.cursor = 'default';
               }}
               disabled={selectedPixels.size === 0}
@@ -673,13 +760,13 @@ export default function PixelCanvas() {
 
             {/* Instructions */}
             <div className="absolute bottom-2 left-2 text-xs text-gray-600 dark:text-gray-400 bg-white/80 dark:bg-black/80 p-2 rounded max-w-xs">
-              <p><strong>Controls:</strong></p>
-              <p>• Click: Add pixel to selection</p>
-              <p>• Click selected: Replace with single pixel</p>
-              <p>• Shift+Drag: Rectangle select (additive)</p>
+              <p><strong>Drawing Controls:</strong></p>
+              <p>• Click: Set single pixel color</p>
+              <p>• Click+Drag: Draw lines and shapes</p>
+              <p>• Shift+Drag: Select rectangle area</p>
               <p>• Mouse Wheel: Zoom in/out</p>
               <p>• Ctrl+Drag: Pan canvas</p>
-              <p>• See color preview on selected pixels</p>
+              <p>• Perfect for pixel art creation!</p>
             </div>
           </div>
         </CardBody>
