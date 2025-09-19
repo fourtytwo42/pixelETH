@@ -199,7 +199,7 @@ export default function PixelCanvas() {
     }
   }, [canvasInfo, isLoadingPixels, findAllOwnedPixels, initialPixelsLoaded]);
 
-  const loadCanvasInfo = async () => {
+  const loadCanvasInfo = async (resetView: boolean = true) => {
     if (!connection) return;
 
     try {
@@ -228,8 +228,10 @@ export default function PixelCanvas() {
       document.getElementById('base-price')!.textContent = `${formatEther(basePrice)} ETH`;
       document.getElementById('canvas-size')!.textContent = `${width} × ${height}`;
       
-      // Initialize view to fit the grid
-      setTimeout(() => initializeView(), 100);
+      // Initialize view to fit the grid (only on first load)
+      if (resetView) {
+        setTimeout(() => initializeView(), 100);
+      }
 
     } catch (error) {
       console.error('Failed to load canvas info:', error);
@@ -790,7 +792,7 @@ export default function PixelCanvas() {
       setIsLoadingPixels(false);
       setLastLoadedArea({ startX: -1, startY: -1, endX: -1, endY: -1 });
       
-      await loadCanvasInfo();
+      await loadCanvasInfo(false); // Don't reset view after purchase
       
       // Canvas will redraw automatically via useEffect
 
@@ -991,7 +993,7 @@ export default function PixelCanvas() {
                   setInitialPixelsLoaded(false);
                   setIsLoadingPixels(false);
                   setLastLoadedArea({ startX: -1, startY: -1, endX: -1, endY: -1 });
-                  loadCanvasInfo();
+                  loadCanvasInfo(false); // Don't reset view on refresh
                 }}
               >
                 Refresh
