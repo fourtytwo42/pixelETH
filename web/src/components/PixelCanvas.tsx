@@ -69,7 +69,6 @@ export default function PixelCanvas() {
   const findAllOwnedPixels = useCallback(async () => {
     if (!connection || !canvasInfo || isLoading) return;
     
-    console.log('Finding all owned pixels using contract events...');
     setIsLoading(true);
     
     try {
@@ -77,11 +76,8 @@ export default function PixelCanvas() {
       const newPixels = new Map<number, Pixel>();
       
       // Get all PixelBought events from the contract
-      console.log('Querying PixelBought events...');
       const filter = contract.filters.PixelBought();
       const events = await contract.queryFilter(filter, 0);
-      
-      console.log(`Found ${events.length} pixel purchase events`);
       
       // Extract unique pixel IDs from all events
       const pixelIds = new Set<number>();
@@ -92,15 +88,12 @@ export default function PixelCanvas() {
         }
       });
       
-      console.log(`Total unique pixels purchased: ${pixelIds.size}`);
-      
       // Now fetch current state for these specific pixels
       const pixelIdsArray = Array.from(pixelIds);
       const chunkSize = 100; // Smaller chunks for better performance
       
       for (let i = 0; i < pixelIdsArray.length; i += chunkSize) {
         const chunk = pixelIdsArray.slice(i, i + chunkSize);
-        console.log(`Loading pixel states ${i + 1}-${Math.min(i + chunkSize, pixelIdsArray.length)} of ${pixelIdsArray.length}...`);
         
         const pixelPromises = chunk.map(id => contract.getPixel(id));
         const results = await Promise.all(pixelPromises);
@@ -127,7 +120,6 @@ export default function PixelCanvas() {
         });
       }
       
-      console.log(`Found ${newPixels.size} currently owned pixels`);
       setPixels(newPixels);
       
     } catch (error) {
@@ -148,7 +140,6 @@ export default function PixelCanvas() {
   // Auto-load pixels when canvas info changes
   useEffect(() => {
     if (canvasInfo && (canvasInfo.redCount > 0 || canvasInfo.blueCount > 0) && !isLoading) {
-      console.log('Canvas info detected existing pixels, auto-loading them...');
       findAllOwnedPixels();
     }
   }, [canvasInfo, isLoading, findAllOwnedPixels]);
@@ -182,7 +173,6 @@ export default function PixelCanvas() {
       document.getElementById('base-price')!.textContent = `${formatEther(basePrice)} ETH`;
       document.getElementById('canvas-size')!.textContent = `${width} × ${height}`;
 
-      console.log('Canvas info loaded:', info);
     } catch (error) {
       console.error('Failed to load canvas info:', error);
       setError('Failed to load canvas information');
@@ -493,7 +483,6 @@ export default function PixelCanvas() {
           setDragEnd({ x: pixelX, y: pixelY });
           setDragPath([{ x: pixelX, y: pixelY }]);
           
-          console.log('Started drawing at pixel:', pixelId, 'with color:', selectedColor.toString(16));
         }
       }
     }
@@ -576,11 +565,8 @@ export default function PixelCanvas() {
         
         setSelectedPixels(newSelected);
         setSelectedPixelColors(newColors);
-        console.log('Rectangle selected area:', `(${minX}, ${minY}) to (${maxX}, ${maxY})`);
-        console.log('Total selected pixels after rectangle:', newSelected.size);
       } else {
         // Line drawing is already complete from mouse move events
-        console.log('Line drawing completed with', selectedPixels.size, 'pixels');
       }
       
       setIsDragging(false);
@@ -637,21 +623,13 @@ export default function PixelCanvas() {
       const colors24 = encodeColors24(colors);
       const teamBits = encodeTeamBits(teams);
 
-      console.log('Buying pixels:', {
-        count: pixelIds.length,
-        totalCost: formatEther(totalCost),
-        team: selectedTeam === 0 ? 'Red' : 'Blue',
-        color: `#${selectedColor.toString(16).padStart(6, '0')}`,
-      });
 
       // Send transaction
       const tx = await contract.buyPacked(idsLE, colors24, teamBits, totalCost, {
         value: totalCost,
       });
 
-      console.log('Transaction sent:', tx.hash);
       await tx.wait();
-      console.log('Transaction confirmed!');
 
       // Refresh canvas data
       setSelectedPixels(new Set());
