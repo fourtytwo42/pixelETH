@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useWeb3 } from './Web3Provider';
-import { HARDHAT_ACCOUNTS, NETWORKS } from '@/lib/web3';
+import { HARDHAT_ACCOUNTS, NETWORKS, getProvider, formatEther } from '@/lib/web3';
 import Button from './ui/Button';
 import { Card, CardBody } from './ui/Card';
 
@@ -10,6 +10,33 @@ export default function WalletConnection() {
   const { connection, isConnecting, error, connectWallet, disconnectWallet, addHardhatNetwork, switchToNetwork, clearError } = useWeb3();
   const [selectedHardhatAccount, setSelectedHardhatAccount] = useState(0);
   const [showAccountSelector, setShowAccountSelector] = useState(false);
+  const [balance, setBalance] = useState<string | null>(null);
+  const [isLoadingBalance, setIsLoadingBalance] = useState(false);
+
+  // Fetch balance when connected
+  useEffect(() => {
+    const fetchBalance = async () => {
+      if (!connection) {
+        setBalance(null);
+        return;
+      }
+
+      setIsLoadingBalance(true);
+      try {
+        const provider = getProvider(connection);
+        const balanceBigInt = await provider.getBalance(connection.address);
+        const balanceFormatted = formatEther(balanceBigInt);
+        setBalance(balanceFormatted);
+      } catch (error) {
+        console.error('Failed to fetch balance:', error);
+        setBalance('Error');
+      } finally {
+        setIsLoadingBalance(false);
+      }
+    };
+
+    fetchBalance();
+  }, [connection]);
 
   const handleConnectMetaMask = async () => {
     await connectWallet('metamask');
@@ -71,6 +98,19 @@ export default function WalletConnection() {
             <div>
               <label className="text-sm font-medium text-gray-600 dark:text-gray-300">Wallet Type</label>
               <p className="text-sm capitalize">{connection.type.replace('-', ' ')}</p>
+            </div>
+            
+            <div>
+              <label className="text-sm font-medium text-gray-600 dark:text-gray-300">Balance</label>
+              <p className="text-sm font-mono">
+                {isLoadingBalance ? (
+                  <span className="text-gray-500">Loading...</span>
+                ) : balance ? (
+                  <span>{parseFloat(balance).toFixed(4)} ETH</span>
+                ) : (
+                  <span className="text-red-500">Error</span>
+                )}
+              </p>
             </div>
           </div>
 

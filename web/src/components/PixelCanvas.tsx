@@ -5,6 +5,7 @@ import { useWeb3 } from './Web3Provider';
 import { getPixelCanvasContract, formatEther, encodeIdsLE, encodeColors24, encodeTeamBits } from '@/lib/web3';
 import { Card, CardBody } from './ui/Card';
 import Button from './ui/Button';
+import Modal from './ui/Modal';
 
 interface Pixel {
   id: number;
@@ -69,6 +70,13 @@ export default function PixelCanvas() {
   const [dragMode, setDragMode] = useState<'line' | 'rectangle'>('line');
   const [dragPath, setDragPath] = useState<Array<{ x: number, y: number }>>([]); // For line drawing
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showPurchaseModal, setShowPurchaseModal] = useState(false);
+  const [purchaseDetails, setPurchaseDetails] = useState<{
+    pixelCount: number;
+    totalCost: bigint;
+    pixelIds: number[];
+    colors: number[];
+  } | null>(null);
 
   // Find all owned pixels efficiently using contract events
   const findAllOwnedPixels = useCallback(async () => {
@@ -762,7 +770,8 @@ export default function PixelCanvas() {
 
 
   // Buy pixels function
-  const buyPixels = async () => {
+  // Prepare purchase and show confirmation modal
+  const preparePurchase = async () => {
     if (!connection || selectedPixels.size === 0) return;
 
     setIsLoading(true);
@@ -771,7 +780,6 @@ export default function PixelCanvas() {
     try {
       const contract = getPixelCanvasContract(connection);
       const pixelIds = Array.from(selectedPixels).sort((a, b) => a - b);
-      const teams = Array(pixelIds.length).fill(selectedTeam);
 
       // Get colors for each selected pixel
       const colors = pixelIds.map(id => selectedPixelColors.get(id) || selectedColor);
@@ -783,11 +791,39 @@ export default function PixelCanvas() {
         totalCost += price;
       }
 
+      // Set purchase details and show modal
+      setPurchaseDetails({
+        pixelCount: pixelIds.length,
+        totalCost,
+        pixelIds,
+        colors
+      });
+      setShowPurchaseModal(true);
+
+    } catch (error: any) {
+      console.error('Failed to prepare purchase:', error);
+      setError(error.reason || error.message || 'Failed to calculate purchase cost');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Execute the actual purchase
+  const executePurchase = async () => {
+    if (!connection || !purchaseDetails) return;
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const contract = getPixelCanvasContract(connection);
+      const { pixelIds, colors, totalCost } = purchaseDetails;
+      const teams = Array(pixelIds.length).fill(selectedTeam);
+
       // Encode data
       const idsLE = encodeIdsLE(pixelIds);
       const colors24 = encodeColors24(colors);
       const teamBits = encodeTeamBits(teams);
-
 
       // Send transaction
       const tx = await contract.buyPacked(idsLE, colors24, teamBits, totalCost, {
@@ -796,7 +832,9 @@ export default function PixelCanvas() {
 
       await tx.wait();
 
-      // Refresh canvas data
+      // Close modal and refresh canvas data
+      setShowPurchaseModal(false);
+      setPurchaseDetails(null);
       setSelectedPixels(new Set());
       setSelectedPixelColors(new Map());
       
@@ -807,8 +845,6 @@ export default function PixelCanvas() {
       setLastLoadedArea({ startX: -1, startY: -1, endX: -1, endY: -1 });
       
       await loadCanvasInfo(false); // Don't reset view after purchase
-      
-      // Canvas will redraw automatically via useEffect
 
     } catch (error: any) {
       console.error('Failed to buy pixels:', error);
@@ -816,6 +852,13 @@ export default function PixelCanvas() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Cancel purchase
+  const cancelPurchase = () => {
+    setShowPurchaseModal(false);
+    setPurchaseDetails(null);
+    setIsLoading(false);
   };
 
   if (!connection) {
@@ -916,7 +959,7 @@ export default function PixelCanvas() {
 
           {/* Buy Button */}
           <Button
-            onClick={buyPixels}
+            onClick={preparePurchase}
             disabled={selectedPixels.size === 0 || isLoading}
             className="ml-auto"
           >
@@ -1166,6 +1209,72 @@ export default function PixelCanvas() {
           </div>
         </CardBody>
       </Card>
+
+      {/* Purchase Confirmation Modal */}
+      <Modal
+        isOpen={showPurchaseModal}
+        onClose={cancelPurchase}
+        title="Confirm Purchase"
+        size="md"
+        footer={
+          <div className="flex gap-3 justify-end">
+            <Button
+              variant="secondary"
+              onClick={cancelPurchase}
+              disabled={isLoading}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={executePurchase}
+              disabled={isLoading}
+            >
+              {isLoading ? 'Processing...' : 'Confirm Purchase'}
+            </Button>
+          </div>
+        }
+      >
+        {purchaseDetails && (
+          <div className="space-y-4">
+            <div className="text-center">
+              <h4 className="text-lg font-semibold mb-2">
+                Purchase {purchaseDetails.pixelCount} Pixel{purchaseDetails.pixelCount !== 1 ? 's' : ''}
+              </h4>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Team: <span className={selectedTeam === 0 ? 'text-red-500 font-semibold' : 'text-blue-500 font-semibold'}>
+                  {selectedTeam === 0 ? '🔴 Red' : '🔵 Blue'}
+                </span>
+              </p>
+            </div>
+
+            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <span>Pixels:</span>
+                  <span className="font-semibold">{purchaseDetails.pixelCount}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Network:</span>
+                  <span className="text-sm">{connection?.type === 'hardhat-local' ? 'Hardhat Local' : 'MetaMask'}</span>
+                </div>
+                <div className="border-t border-gray-200 dark:border-gray-600 pt-2">
+                  <div className="flex justify-between text-lg font-bold">
+                    <span>Total Cost:</span>
+                    <span>{parseFloat(formatEther(purchaseDetails.totalCost)).toFixed(6)} ETH</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="text-xs text-gray-500 dark:text-gray-400 text-center">
+              {connection?.type === 'hardhat-local' 
+                ? 'Transaction will be submitted directly to Hardhat network'
+                : 'Transaction will be sent to MetaMask for confirmation'
+              }
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
