@@ -240,6 +240,12 @@ export default function PixelCanvas() {
   // Load pixel data for visible area (optimized with area checking)
   const loadPixels = useCallback(async (startX: number, startY: number, endX: number, endY: number, forceReload: boolean = false) => {
     if (!connection || !canvasInfo) return;
+    
+    // If we already loaded all pixels via findAllOwnedPixels, don't do incremental loading
+    if (initialPixelsLoaded && !forceReload) {
+      console.log('loadPixels: Skipping - already have complete pixel set');
+      return;
+    }
 
     // Skip if we've already loaded this area (unless force reload)
     if (!forceReload && startX >= lastLoadedArea.startX && endX <= lastLoadedArea.endX &&
@@ -298,12 +304,18 @@ export default function PixelCanvas() {
         }
       });
 
-      setPixels(newPixels);
+      // Only update pixels if we actually loaded new data and it's not conflicting with existing data
+      if (newPixels.size > pixels.size || forceReload) {
+        console.log('loadPixels: Updating pixel map from', pixels.size, 'to', newPixels.size, 'pixels');
+        setPixels(newPixels);
+      } else {
+        console.log('loadPixels: Skipping update - would reduce pixel count from', pixels.size, 'to', newPixels.size);
+      }
       setLastLoadedArea({ startX, startY, endX, endY });
     } catch (error) {
       console.error('Failed to load pixels:', error);
     }
-  }, [connection, canvasInfo, lastLoadedArea]);
+  }, [connection, canvasInfo, lastLoadedArea, initialPixelsLoaded, pixels]);
 
   // Bresenham's line algorithm for smooth line drawing
   const getLinePixels = useCallback((x0: number, y0: number, x1: number, y1: number): Array<{ x: number, y: number }> => {
