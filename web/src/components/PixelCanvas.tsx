@@ -55,6 +55,8 @@ export default function PixelCanvas() {
   const [initialPixelsLoaded, setInitialPixelsLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hoveredPixel, setHoveredPixel] = useState<number | null>(null);
+  const [hoveredOwner, setHoveredOwner] = useState<string | null>(null);
+  const [hoveredOwnerStats, setHoveredOwnerStats] = useState<{redCount: number, blueCount: number, totalCount: number} | null>(null);
   const [scale, setScale] = useState(4);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
@@ -340,6 +342,13 @@ export default function PixelCanvas() {
         
         ctx.fillStyle = `#${pixel.color.toString(16).padStart(6, '0')}`;
         ctx.fillRect(pixelX, pixelY, scale, scale);
+        
+        // Add white border if this pixel is owned by the same user as the hovered pixel
+        if (hoveredOwner && pixel.owner === hoveredOwner && scale >= 2) {
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(pixelX, pixelY, scale, scale);
+        }
       }
     });
 
@@ -399,7 +408,7 @@ export default function PixelCanvas() {
     }, 100);
 
     return () => clearTimeout(loadTimeout);
-  }, [canvasInfo, pixels, selectedPixels, selectedPixelColors, hoveredPixel, scale, pan, loadPixels, isDragging, dragStart, dragEnd, dragMode, dragPath, initialPixelsLoaded]);
+  }, [canvasInfo, pixels, selectedPixels, selectedPixelColors, hoveredPixel, scale, pan, loadPixels, isDragging, dragStart, dragEnd, dragMode, dragPath, initialPixelsLoaded, hoveredOwner]);
 
   // Throttled redraw to improve performance
   useEffect(() => {
@@ -543,9 +552,41 @@ export default function PixelCanvas() {
       const pixelId = getPixelFromMouse(e);
       if (pixelId !== hoveredPixel) {
         setHoveredPixel(pixelId);
+        
+        // Update hovered owner and calculate stats
+        if (pixelId !== null) {
+          const pixel = pixels.get(pixelId);
+          if (pixel && pixel.owner !== '0x0000000000000000000000000000000000000000') {
+            if (hoveredOwner !== pixel.owner) {
+              setHoveredOwner(pixel.owner);
+              
+              // Calculate owner statistics
+              let redCount = 0;
+              let blueCount = 0;
+              pixels.forEach(p => {
+                if (p.owner === pixel.owner) {
+                  if (p.team === 0) redCount++;
+                  else blueCount++;
+                }
+              });
+              
+              setHoveredOwnerStats({
+                redCount,
+                blueCount,
+                totalCount: redCount + blueCount
+              });
+            }
+          } else {
+            setHoveredOwner(null);
+            setHoveredOwnerStats(null);
+          }
+        } else {
+          setHoveredOwner(null);
+          setHoveredOwnerStats(null);
+        }
       }
     }
-  }, [isPanning, lastPanPoint, isDragging, dragStart, canvasInfo, pan, scale, hoveredPixel, getPixelFromMouse, dragMode, dragPath, selectedPixels, selectedPixelColors, selectedColor]);
+  }, [isPanning, lastPanPoint, isDragging, dragStart, canvasInfo, pan, scale, hoveredPixel, getPixelFromMouse, dragMode, dragPath, selectedPixels, selectedPixelColors, selectedColor, pixels, hoveredOwner]);
 
   const handleMouseUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
     e.preventDefault();
@@ -593,6 +634,8 @@ export default function PixelCanvas() {
     setDragEnd(null);
     setDragPath([]);
     setHoveredPixel(null);
+    setHoveredOwner(null);
+    setHoveredOwnerStats(null);
     document.body.style.cursor = 'default'; // Reset cursor when leaving canvas
   };
 
@@ -788,6 +831,26 @@ export default function PixelCanvas() {
               onWheel={handleWheel}
               onContextMenu={(e) => e.preventDefault()}
             />
+            
+            {/* Hover Tooltip */}
+            {hoveredOwner && hoveredOwnerStats && (
+              <div className="absolute top-2 left-2 bg-black/80 text-white text-xs p-2 rounded shadow-lg pointer-events-none">
+                <div className="font-semibold mb-1">Owner: {hoveredOwner.slice(0, 6)}...{hoveredOwner.slice(-4)}</div>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 bg-red-500 rounded"></div>
+                    <span>Red: {hoveredOwnerStats.redCount}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 bg-blue-500 rounded"></div>
+                    <span>Blue: {hoveredOwnerStats.blueCount}</span>
+                  </div>
+                  <div className="border-t border-gray-600 pt-1 mt-1">
+                    <span className="font-semibold">Total: {hoveredOwnerStats.totalCount}</span>
+                  </div>
+                </div>
+              </div>
+            )}
             
             {/* Canvas Controls */}
             <div className="absolute top-2 right-2 flex gap-2">
