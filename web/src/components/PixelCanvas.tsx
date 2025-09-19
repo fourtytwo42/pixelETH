@@ -50,6 +50,7 @@ export default function PixelCanvas() {
   const [selectedColor, setSelectedColor] = useState(0xFF0000);
   const [selectedTeam, setSelectedTeam] = useState(0);
   const [selectedPixels, setSelectedPixels] = useState<Set<number>>(new Set());
+  const [selectedPixelColors, setSelectedPixelColors] = useState<Map<number, number>>(new Map());
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hoveredPixel, setHoveredPixel] = useState<number | null>(null);
@@ -241,8 +242,9 @@ export default function PixelCanvas() {
           const pixelX = x * scale + pan.x;
           const pixelY = y * scale + pan.y;
           
-          // Show solid color preview (exactly as it will appear when purchased)
-          ctx.fillStyle = `#${selectedColor.toString(16).padStart(6, '0')}`;
+          // Show solid color preview using the color assigned when this pixel was selected
+          const pixelColor = selectedPixelColors.get(id) || selectedColor;
+          ctx.fillStyle = `#${pixelColor.toString(16).padStart(6, '0')}`;
           ctx.fillRect(pixelX, pixelY, scale, scale);
         }
       });
@@ -360,17 +362,23 @@ export default function PixelCanvas() {
         } else {
           // Multi-select by default (additive selection unless clicking existing pixel)
           const newSelected = new Set(selectedPixels);
+          const newColors = new Map(selectedPixelColors);
+          
           if (newSelected.has(pixelId)) {
             // If clicking an already selected pixel, replace selection with just this pixel
             newSelected.clear();
+            newColors.clear();
             newSelected.add(pixelId);
+            newColors.set(pixelId, selectedColor);
             console.log('Replaced selection with single pixel:', pixelId);
           } else {
-            // Add to existing selection
+            // Add to existing selection with current color
             newSelected.add(pixelId);
-            console.log('Added pixel to selection:', pixelId);
+            newColors.set(pixelId, selectedColor);
+            console.log('Added pixel to selection:', pixelId, 'with color:', selectedColor.toString(16));
           }
           setSelectedPixels(newSelected);
+          setSelectedPixelColors(newColors);
           console.log('Total selected pixels:', newSelected.size, Array.from(newSelected));
         }
       }
@@ -419,15 +427,18 @@ export default function PixelCanvas() {
       const maxY = Math.max(dragStart.y, dragEnd.y);
       
       const newSelected = new Set(selectedPixels);
+      const newColors = new Map(selectedPixelColors);
       
       for (let y = minY; y <= maxY; y++) {
         for (let x = minX; x <= maxX; x++) {
           const pixelId = y * canvasInfo.width + x;
           newSelected.add(pixelId);
+          newColors.set(pixelId, selectedColor); // Use current selected color for all drag-selected pixels
         }
       }
       
       setSelectedPixels(newSelected);
+      setSelectedPixelColors(newColors);
       console.log('Drag selected area:', `(${minX}, ${minY}) to (${maxX}, ${maxY})`);
       console.log('Total selected pixels after drag:', newSelected.size);
       
@@ -466,8 +477,10 @@ export default function PixelCanvas() {
     try {
       const contract = getPixelCanvasContract(connection);
       const pixelIds = Array.from(selectedPixels).sort((a, b) => a - b);
-      const colors = Array(pixelIds.length).fill(selectedColor);
       const teams = Array(pixelIds.length).fill(selectedTeam);
+
+      // Get colors for each selected pixel
+      const colors = pixelIds.map(id => selectedPixelColors.get(id) || selectedColor);
 
       // Calculate total cost
       let totalCost = 0n;
@@ -499,6 +512,7 @@ export default function PixelCanvas() {
 
       // Refresh canvas data
       setSelectedPixels(new Set());
+      setSelectedPixelColors(new Map());
       await loadCanvasInfo();
       
       // Force reload pixels
@@ -596,6 +610,7 @@ export default function PixelCanvas() {
               size="sm"
               onClick={() => {
                 setSelectedPixels(new Set());
+                setSelectedPixelColors(new Map());
                 setHoveredPixel(null);
                 setIsPanning(false);
                 setIsDragging(false);
