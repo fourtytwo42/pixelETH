@@ -72,6 +72,14 @@ export default function PixelCanvas() {
     }
   }, [connection]);
 
+  // Auto-load pixels when canvas info changes
+  useEffect(() => {
+    if (canvasInfo && (canvasInfo.redCount > 0 || canvasInfo.blueCount > 0) && !isLoading) {
+      console.log('Canvas info detected existing pixels, auto-loading them...');
+      findAllOwnedPixels();
+    }
+  }, [canvasInfo, isLoading, findAllOwnedPixels]);
+
 
   const loadCanvasInfo = async () => {
     if (!connection) return;
@@ -103,12 +111,6 @@ export default function PixelCanvas() {
       document.getElementById('canvas-size')!.textContent = `${width} × ${height}`;
 
       console.log('Canvas info loaded:', info);
-      
-      // After loading canvas info, automatically load all owned pixels if any exist
-      if (info.redCount > 0 || info.blueCount > 0) {
-        console.log('Canvas has existing pixels, auto-loading them...');
-        setTimeout(() => findAllOwnedPixels(), 500);
-      }
     } catch (error) {
       console.error('Failed to load canvas info:', error);
       setError('Failed to load canvas information');
@@ -116,7 +118,7 @@ export default function PixelCanvas() {
   };
 
   // Find all owned pixels efficiently using contract events
-  const findAllOwnedPixels = async () => {
+  const findAllOwnedPixels = useCallback(async () => {
     if (!connection || !canvasInfo || isLoading) return;
     
     console.log('Finding all owned pixels using contract events...');
@@ -180,16 +182,13 @@ export default function PixelCanvas() {
       console.log(`Found ${newPixels.size} currently owned pixels`);
       setPixels(newPixels);
       
-      // Force redraw
-      setTimeout(() => drawCanvas(), 100);
-      
     } catch (error) {
       console.error('Failed to find owned pixels via events:', error);
       setError('Failed to search for owned pixels');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [connection, canvasInfo, isLoading]);
 
   // Load pixel data for visible area (optimized with area checking)
   const loadPixels = useCallback(async (startX: number, startY: number, endX: number, endY: number, forceReload: boolean = false) => {
@@ -664,10 +663,7 @@ export default function PixelCanvas() {
       setPixels(new Map());
       setLastLoadedArea({ startX: -1, startY: -1, endX: -1, endY: -1 });
       
-      // Force a complete canvas redraw
-      setTimeout(() => {
-        drawCanvas();
-      }, 100);
+      // Canvas will redraw automatically via useEffect
 
     } catch (error: any) {
       console.error('Failed to buy pixels:', error);
@@ -827,7 +823,6 @@ export default function PixelCanvas() {
                   setPixels(new Map());
                   setLastLoadedArea({ startX: -1, startY: -1, endX: -1, endY: -1 });
                   loadCanvasInfo();
-                  setTimeout(() => drawCanvas(), 100);
                 }}
               >
                 Refresh
