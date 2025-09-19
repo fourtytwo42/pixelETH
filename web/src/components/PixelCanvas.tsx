@@ -52,6 +52,7 @@ export default function PixelCanvas() {
   const [selectedPixels, setSelectedPixels] = useState<Set<number>>(new Set());
   const [selectedPixelColors, setSelectedPixelColors] = useState<Map<number, number>>(new Map());
   const [isLoading, setIsLoading] = useState(false);
+  const [initialPixelsLoaded, setInitialPixelsLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hoveredPixel, setHoveredPixel] = useState<number | null>(null);
   const [scale, setScale] = useState(4);
@@ -121,10 +122,12 @@ export default function PixelCanvas() {
       }
       
       setPixels(newPixels);
+      setInitialPixelsLoaded(true);
       
     } catch (error) {
       console.error('Failed to find owned pixels via events:', error);
       setError('Failed to search for owned pixels');
+      setInitialPixelsLoaded(true); // Set to true even on error so canvas can render
     } finally {
       setIsLoading(false);
     }
@@ -141,6 +144,9 @@ export default function PixelCanvas() {
   useEffect(() => {
     if (canvasInfo && (canvasInfo.redCount > 0 || canvasInfo.blueCount > 0) && !isLoading) {
       findAllOwnedPixels();
+    } else if (canvasInfo && canvasInfo.redCount === 0 && canvasInfo.blueCount === 0) {
+      // No pixels to load, mark as loaded
+      setInitialPixelsLoaded(true);
     }
   }, [canvasInfo, isLoading, findAllOwnedPixels]);
 
@@ -281,7 +287,7 @@ export default function PixelCanvas() {
   // Canvas drawing (optimized for performance)
   const drawCanvas = useCallback(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !canvasInfo) return;
+    if (!canvas || !canvasInfo || !initialPixelsLoaded) return;
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
@@ -393,7 +399,7 @@ export default function PixelCanvas() {
     }, 100);
 
     return () => clearTimeout(loadTimeout);
-  }, [canvasInfo, pixels, selectedPixels, selectedPixelColors, hoveredPixel, scale, pan, loadPixels, isDragging, dragStart, dragEnd, dragMode, dragPath]);
+  }, [canvasInfo, pixels, selectedPixels, selectedPixelColors, hoveredPixel, scale, pan, loadPixels, isDragging, dragStart, dragEnd, dragMode, dragPath, initialPixelsLoaded]);
 
   // Throttled redraw to improve performance
   useEffect(() => {
@@ -638,6 +644,7 @@ export default function PixelCanvas() {
       
       // Force reload pixels by clearing cache and loaded area
       setPixels(new Map());
+      setInitialPixelsLoaded(false);
       setLastLoadedArea({ startX: -1, startY: -1, endX: -1, endY: -1 });
       
       // Canvas will redraw automatically via useEffect
@@ -798,6 +805,7 @@ export default function PixelCanvas() {
                 variant="secondary"
                 onClick={() => {
                   setPixels(new Map());
+                  setInitialPixelsLoaded(false);
                   setLastLoadedArea({ startX: -1, startY: -1, endX: -1, endY: -1 });
                   loadCanvasInfo();
                 }}
