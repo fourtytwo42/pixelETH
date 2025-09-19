@@ -998,30 +998,24 @@ export default function PixelCanvas() {
               >
                 Refresh
               </Button>
-              <Button 
-                size="sm" 
-                variant="secondary"
-                onClick={() => {
-                  if (!isLoadingPixels) {
-                    console.log('Load All Pixels button clicked');
-                    setInitialPixelsLoaded(false);
-                    findAllOwnedPixels();
-                  }
-                }}
-              >
-                Load All Pixels
-              </Button>
             </div>
 
-            {/* Instructions */}
-            <div className="absolute bottom-2 left-2 text-xs text-gray-600 dark:text-gray-400 bg-white/80 dark:bg-black/80 p-2 rounded max-w-xs">
-              <p><strong>Drawing Controls:</strong></p>
-              <p>• Click: Set single pixel color</p>
-              <p>• Click+Drag: Draw lines and shapes</p>
-              <p>• Shift+Drag: Select rectangle area</p>
-              <p>• Mouse Wheel: Zoom in/out</p>
-              <p>• Ctrl+Drag: Pan canvas</p>
-              <p>• Perfect for pixel art creation!</p>
+            {/* Hover Instructions */}
+            <div className="absolute bottom-2 left-2 group">
+              <div className="w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-bold cursor-help">
+                i
+              </div>
+              <div className="absolute bottom-8 left-0 invisible group-hover:visible bg-black/90 text-white text-xs p-3 rounded-lg shadow-lg min-w-64 z-10">
+                <p className="font-semibold mb-2 text-blue-400">Drawing Controls:</p>
+                <div className="space-y-1">
+                  <p>• <span className="text-green-400">Click:</span> Set single pixel color</p>
+                  <p>• <span className="text-green-400">Click+Drag:</span> Draw lines and shapes</p>
+                  <p>• <span className="text-green-400">Shift+Drag:</span> Select rectangle area</p>
+                  <p>• <span className="text-purple-400">Mouse Wheel:</span> Zoom in/out</p>
+                  <p>• <span className="text-purple-400">Right-click drag:</span> Pan canvas</p>
+                  <p>• <span className="text-yellow-400">Perfect for pixel art creation!</span></p>
+                </div>
+              </div>
             </div>
           </div>
         </CardBody>
