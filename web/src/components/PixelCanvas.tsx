@@ -52,6 +52,7 @@ export default function PixelCanvas() {
   const [selectedPixels, setSelectedPixels] = useState<Set<number>>(new Set());
   const [selectedPixelColors, setSelectedPixelColors] = useState<Map<number, number>>(new Map());
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingPixels, setIsLoadingPixels] = useState(false);
   const [initialPixelsLoaded, setInitialPixelsLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hoveredPixel, setHoveredPixel] = useState<number | null>(null);
@@ -70,9 +71,9 @@ export default function PixelCanvas() {
 
   // Find all owned pixels efficiently using contract events
   const findAllOwnedPixels = useCallback(async () => {
-    if (!connection || !canvasInfo || isLoading) return;
+    if (!connection || !canvasInfo || isLoadingPixels) return;
     
-    setIsLoading(true);
+    setIsLoadingPixels(true);
     
     try {
       const contract = getPixelCanvasContract(connection);
@@ -131,9 +132,9 @@ export default function PixelCanvas() {
       setError('Failed to search for owned pixels');
       setInitialPixelsLoaded(true); // Set to true even on error so canvas can render
     } finally {
-      setIsLoading(false);
+      setIsLoadingPixels(false);
     }
-  }, [connection, canvasInfo, isLoading]);
+  }, [connection, canvasInfo]);
 
   // Initialize view to fit entire grid
   const initializeView = useCallback(() => {
@@ -187,13 +188,13 @@ export default function PixelCanvas() {
 
   // Auto-load pixels when canvas info changes
   useEffect(() => {
-    if (canvasInfo && (canvasInfo.redCount > 0 || canvasInfo.blueCount > 0) && !isLoading) {
+    if (canvasInfo && (canvasInfo.redCount > 0 || canvasInfo.blueCount > 0) && !isLoadingPixels && !initialPixelsLoaded) {
       findAllOwnedPixels();
     } else if (canvasInfo && canvasInfo.redCount === 0 && canvasInfo.blueCount === 0) {
       // No pixels to load, mark as loaded
       setInitialPixelsLoaded(true);
     }
-  }, [canvasInfo, isLoading, findAllOwnedPixels]);
+  }, [canvasInfo, isLoadingPixels, findAllOwnedPixels, initialPixelsLoaded]);
 
   const loadCanvasInfo = async () => {
     if (!connection) return;
@@ -771,6 +772,7 @@ export default function PixelCanvas() {
       // Force reload pixels by clearing cache and loaded area
       setPixels(new Map());
       setInitialPixelsLoaded(false);
+      setIsLoadingPixels(false);
       setLastLoadedArea({ startX: -1, startY: -1, endX: -1, endY: -1 });
       
       // Canvas will redraw automatically via useEffect
@@ -915,7 +917,7 @@ export default function PixelCanvas() {
             />
             
             {/* Loading Overlay */}
-            {!initialPixelsLoaded && (
+            {isLoadingPixels && (
               <div className="absolute inset-0 bg-gray-50/80 dark:bg-gray-900/80 flex items-center justify-center">
                 <div className="text-center">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
@@ -969,6 +971,7 @@ export default function PixelCanvas() {
                 onClick={() => {
                   setPixels(new Map());
                   setInitialPixelsLoaded(false);
+                  setIsLoadingPixels(false);
                   setLastLoadedArea({ startX: -1, startY: -1, endX: -1, endY: -1 });
                   loadCanvasInfo();
                 }}
@@ -979,7 +982,10 @@ export default function PixelCanvas() {
                 size="sm" 
                 variant="secondary"
                 onClick={() => {
-                  findAllOwnedPixels();
+                  if (!isLoadingPixels) {
+                    setInitialPixelsLoaded(false);
+                    findAllOwnedPixels();
+                  }
                 }}
               >
                 Load All Pixels
