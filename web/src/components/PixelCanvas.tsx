@@ -302,30 +302,6 @@ export default function PixelCanvas() {
       ctx.setLineDash([]); // Reset line dash
     }
 
-    // Show line drawing preview (for line mode)
-    if (isDragging && dragMode === 'line' && dragPath.length > 1) {
-      ctx.strokeStyle = '#00FF00';
-      ctx.lineWidth = 2;
-      ctx.setLineDash([3, 3]);
-      
-      ctx.beginPath();
-      const firstPoint = dragPath[0];
-      ctx.moveTo(firstPoint.x * scale + pan.x + scale/2, firstPoint.y * scale + pan.y + scale/2);
-      
-      for (let i = 1; i < dragPath.length; i++) {
-        const point = dragPath[i];
-        ctx.lineTo(point.x * scale + pan.x + scale/2, point.y * scale + pan.y + scale/2);
-      }
-      
-      // Add line to current mouse position if different from last point
-      if (dragEnd && (dragEnd.x !== dragPath[dragPath.length - 1].x || dragEnd.y !== dragPath[dragPath.length - 1].y)) {
-        ctx.lineTo(dragEnd.x * scale + pan.x + scale/2, dragEnd.y * scale + pan.y + scale/2);
-      }
-      
-      ctx.stroke();
-      ctx.setLineDash([]); // Reset line dash
-    }
-
     // Highlight hovered pixel
     if (hoveredPixel !== null) {
       const x = hoveredPixel % canvasInfo.width;
