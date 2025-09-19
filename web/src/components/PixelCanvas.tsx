@@ -57,6 +57,7 @@ export default function PixelCanvas() {
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [lastPanPoint, setLastPanPoint] = useState({ x: 0, y: 0 });
+  const [lastLoadedArea, setLastLoadedArea] = useState({ startX: -1, startY: -1, endX: -1, endY: -1 });
 
   // Load canvas info and initial pixels
   useEffect(() => {
@@ -101,9 +102,29 @@ export default function PixelCanvas() {
     }
   };
 
-  // Load pixel data for visible area
-  const loadPixels = async (startX: number, startY: number, endX: number, endY: number) => {
+  // Load pixel data for visible area (optimized with area checking)
+  const loadPixels = useCallback(async (startX: number, startY: number, endX: number, endY: number) => {
     if (!connection || !canvasInfo) return;
+
+    // Skip if we've already loaded this area
+    if (startX >= lastLoadedArea.startX && endX <= lastLoadedArea.endX &&
+        startY >= lastLoadedArea.startY && endY <= lastLoadedArea.endY) {
+      return;
+    }
+
+    // Limit the area to prevent loading too many pixels at once
+    const maxPixelsPerLoad = 100;
+    const areaSize = (endX - startX + 1) * (endY - startY + 1);
+    if (areaSize > maxPixelsPerLoad) {
+      // Reduce the area to center around current view
+      const centerX = Math.floor((startX + endX) / 2);
+      const centerY = Math.floor((startY + endY) / 2);
+      const halfSize = Math.floor(Math.sqrt(maxPixelsPerLoad) / 2);
+      startX = Math.max(0, centerX - halfSize);
+      endX = Math.min(canvasInfo.width - 1, centerX + halfSize);
+      startY = Math.max(0, centerY - halfSize);
+      endY = Math.min(canvasInfo.height - 1, centerY + halfSize);
+    }
 
     try {
       const contract = getPixelCanvasContract(connection);
@@ -143,12 +164,13 @@ export default function PixelCanvas() {
       });
 
       setPixels(newPixels);
+      setLastLoadedArea({ startX, startY, endX, endY });
     } catch (error) {
       console.error('Failed to load pixels:', error);
     }
-  };
+  }, [connection, canvasInfo, pixels, lastLoadedArea]);
 
-  // Canvas drawing
+  // Canvas drawing (optimized for performance)
   const drawCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas || !canvasInfo) return;
@@ -168,30 +190,34 @@ export default function PixelCanvas() {
     const visibleEndX = Math.min(canvasInfo.width - 1, Math.floor((width - pan.x) / scale));
     const visibleEndY = Math.min(canvasInfo.height - 1, Math.floor((height - pan.y) / scale));
 
-    // Load pixels for visible area
-    loadPixels(visibleStartX, visibleStartY, visibleEndX, visibleEndY);
-
-    // Draw grid
-    ctx.strokeStyle = '#e0e0e0';
-    ctx.lineWidth = 0.5;
-    
-    for (let x = visibleStartX; x <= visibleEndX + 1; x++) {
-      const pixelX = x * scale + pan.x;
-      ctx.beginPath();
-      ctx.moveTo(pixelX, 0);
-      ctx.lineTo(pixelX, height);
-      ctx.stroke();
+    // Only draw grid if zoomed in enough
+    if (scale >= 3) {
+      ctx.strokeStyle = '#e0e0e0';
+      ctx.lineWidth = 0.5;
+      
+      // Limit grid lines to prevent performance issues
+      const maxGridLines = 100;
+      const gridStepX = Math.max(1, Math.ceil((visibleEndX - visibleStartX) / maxGridLines));
+      const gridStepY = Math.max(1, Math.ceil((visibleEndY - visibleStartY) / maxGridLines));
+      
+      for (let x = visibleStartX; x <= visibleEndX + 1; x += gridStepX) {
+        const pixelX = x * scale + pan.x;
+        ctx.beginPath();
+        ctx.moveTo(pixelX, 0);
+        ctx.lineTo(pixelX, height);
+        ctx.stroke();
+      }
+      
+      for (let y = visibleStartY; y <= visibleEndY + 1; y += gridStepY) {
+        const pixelY = y * scale + pan.y;
+        ctx.beginPath();
+        ctx.moveTo(0, pixelY);
+        ctx.lineTo(width, pixelY);
+        ctx.stroke();
+      }
     }
-    
-    for (let y = visibleStartY; y <= visibleEndY + 1; y++) {
-      const pixelY = y * scale + pan.y;
-      ctx.beginPath();
-      ctx.moveTo(0, pixelY);
-      ctx.lineTo(width, pixelY);
-      ctx.stroke();
-    }
 
-    // Draw pixels
+    // Draw pixels only in visible area
     pixels.forEach((pixel) => {
       if (pixel.x >= visibleStartX && pixel.x <= visibleEndX && 
           pixel.y >= visibleStartY && pixel.y <= visibleEndY) {
@@ -204,33 +230,50 @@ export default function PixelCanvas() {
     });
 
     // Highlight selected pixels
-    ctx.strokeStyle = '#000000';
-    ctx.lineWidth = 2;
-    selectedPixels.forEach((id) => {
-      const x = id % canvasInfo.width;
-      const y = Math.floor(id / canvasInfo.width);
-      const pixelX = x * scale + pan.x;
-      const pixelY = y * scale + pan.y;
-      
-      ctx.strokeRect(pixelX, pixelY, scale, scale);
-    });
+    if (selectedPixels.size > 0) {
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 2;
+      selectedPixels.forEach((id) => {
+        const x = id % canvasInfo.width;
+        const y = Math.floor(id / canvasInfo.width);
+        if (x >= visibleStartX && x <= visibleEndX && y >= visibleStartY && y <= visibleEndY) {
+          const pixelX = x * scale + pan.x;
+          const pixelY = y * scale + pan.y;
+          ctx.strokeRect(pixelX, pixelY, scale, scale);
+        }
+      });
+    }
 
     // Highlight hovered pixel
     if (hoveredPixel !== null) {
       const x = hoveredPixel % canvasInfo.width;
       const y = Math.floor(hoveredPixel / canvasInfo.width);
-      const pixelX = x * scale + pan.x;
-      const pixelY = y * scale + pan.y;
-      
-      ctx.strokeStyle = '#ff0000';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(pixelX, pixelY, scale, scale);
+      if (x >= visibleStartX && x <= visibleEndX && y >= visibleStartY && y <= visibleEndY) {
+        const pixelX = x * scale + pan.x;
+        const pixelY = y * scale + pan.y;
+        
+        ctx.strokeStyle = '#ff0000';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(pixelX, pixelY, scale, scale);
+      }
     }
-  }, [canvasInfo, pixels, selectedPixels, hoveredPixel, scale, pan]);
 
-  // Redraw when dependencies change
+    // Load pixels for visible area (debounced)
+    const loadTimeout = setTimeout(() => {
+      loadPixels(visibleStartX, visibleStartY, visibleEndX, visibleEndY);
+    }, 100);
+
+    return () => clearTimeout(loadTimeout);
+  }, [canvasInfo, pixels, selectedPixels, hoveredPixel, scale, pan, loadPixels]);
+
+  // Throttled redraw to improve performance
   useEffect(() => {
-    drawCanvas();
+    let rafId: number;
+    const throttledDraw = () => {
+      drawCanvas();
+    };
+    rafId = requestAnimationFrame(throttledDraw);
+    return () => cancelAnimationFrame(rafId);
   }, [drawCanvas]);
 
   // Cleanup cursor on component unmount or panning state change
@@ -247,7 +290,7 @@ export default function PixelCanvas() {
   }, [isPanning]);
 
   // Mouse event handlers
-  const getPixelFromMouse = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const getPixelFromMouse = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas || !canvasInfo) return null;
 
@@ -263,7 +306,7 @@ export default function PixelCanvas() {
     }
     
     return null;
-  };
+  }, [canvasInfo, pan, scale]);
 
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     e.preventDefault(); // Prevent default browser behavior
@@ -275,31 +318,44 @@ export default function PixelCanvas() {
     } else if (e.button === 0) { // Left click for pixel selection
       const pixelId = getPixelFromMouse(e);
       if (pixelId !== null) {
+        console.log('Clicked pixel ID:', pixelId, 'at position:', pixelId % canvasInfo.width, Math.floor(pixelId / canvasInfo.width));
+        
         const newSelected = new Set(selectedPixels);
         if (e.shiftKey) {
-          // Add to selection
-          newSelected.add(pixelId);
+          // Add to selection or remove if already selected
+          if (newSelected.has(pixelId)) {
+            newSelected.delete(pixelId);
+            console.log('Removed pixel from selection:', pixelId);
+          } else {
+            newSelected.add(pixelId);
+            console.log('Added pixel to selection:', pixelId);
+          }
         } else {
           // Replace selection
           newSelected.clear();
           newSelected.add(pixelId);
+          console.log('Selected single pixel:', pixelId);
         }
         setSelectedPixels(newSelected);
+        console.log('Total selected pixels:', newSelected.size, Array.from(newSelected));
       }
     }
   };
 
-  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (isPanning) {
       const deltaX = e.clientX - lastPanPoint.x;
       const deltaY = e.clientY - lastPanPoint.y;
       setPan(prev => ({ x: prev.x + deltaX, y: prev.y + deltaY }));
       setLastPanPoint({ x: e.clientX, y: e.clientY });
     } else {
+      // Throttle hover detection to improve performance
       const pixelId = getPixelFromMouse(e);
-      setHoveredPixel(pixelId);
+      if (pixelId !== hoveredPixel) {
+        setHoveredPixel(pixelId);
+      }
     }
-  };
+  }, [isPanning, lastPanPoint, hoveredPixel, getPixelFromMouse]);
 
   const handleMouseUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
     e.preventDefault();
@@ -493,8 +549,8 @@ export default function PixelCanvas() {
           <div className="relative">
             <canvas
               ref={canvasRef}
-              width={800}
-              height={600}
+              width={600}
+              height={400}
               className="border border-gray-300 dark:border-gray-600 cursor-pointer select-none"
               onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}
