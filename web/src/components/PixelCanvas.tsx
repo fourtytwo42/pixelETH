@@ -124,6 +124,7 @@ export default function PixelCanvas() {
         });
       }
       
+      console.log('Setting pixels map with', newPixels.size, 'pixels');
       setPixels(newPixels);
       setInitialPixelsLoaded(true);
       
@@ -189,9 +190,11 @@ export default function PixelCanvas() {
   // Auto-load pixels when canvas info changes
   useEffect(() => {
     if (canvasInfo && (canvasInfo.redCount > 0 || canvasInfo.blueCount > 0) && !isLoadingPixels && !initialPixelsLoaded) {
+      console.log('Auto-loading pixels...', { redCount: canvasInfo.redCount, blueCount: canvasInfo.blueCount });
       findAllOwnedPixels();
     } else if (canvasInfo && canvasInfo.redCount === 0 && canvasInfo.blueCount === 0) {
       // No pixels to load, mark as loaded
+      console.log('No pixels to load, marking as loaded');
       setInitialPixelsLoaded(true);
     }
   }, [canvasInfo, isLoadingPixels, findAllOwnedPixels, initialPixelsLoaded]);
@@ -767,13 +770,15 @@ export default function PixelCanvas() {
       // Refresh canvas data
       setSelectedPixels(new Set());
       setSelectedPixelColors(new Map());
-      await loadCanvasInfo();
       
-      // Force reload pixels by clearing cache and loaded area
+      // Force reload pixels by clearing cache and loaded area  
+      console.log('Clearing pixels after purchase');
       setPixels(new Map());
       setInitialPixelsLoaded(false);
       setIsLoadingPixels(false);
       setLastLoadedArea({ startX: -1, startY: -1, endX: -1, endY: -1 });
+      
+      await loadCanvasInfo();
       
       // Canvas will redraw automatically via useEffect
 
@@ -969,6 +974,7 @@ export default function PixelCanvas() {
                 size="sm" 
                 variant="secondary"
                 onClick={() => {
+                  console.log('Refresh button clicked - clearing pixels');
                   setPixels(new Map());
                   setInitialPixelsLoaded(false);
                   setIsLoadingPixels(false);
@@ -983,6 +989,7 @@ export default function PixelCanvas() {
                 variant="secondary"
                 onClick={() => {
                   if (!isLoadingPixels) {
+                    console.log('Load All Pixels button clicked');
                     setInitialPixelsLoaded(false);
                     findAllOwnedPixels();
                   }
