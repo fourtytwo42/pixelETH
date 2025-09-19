@@ -174,31 +174,42 @@ export default function PixelCanvas() {
     }
   };
 
-  // Find all owned pixels by sampling the entire canvas systematically
+  // Find all owned pixels efficiently using contract events
   const findAllOwnedPixels = async () => {
     if (!connection || !canvasInfo) return;
     
-    console.log('Searching for all owned pixels across the entire canvas...');
+    console.log('Finding all owned pixels using contract events...');
     setIsLoading(true);
     
     try {
       const contract = getPixelCanvasContract(connection);
       const newPixels = new Map<number, Pixel>();
       
-      // Search in chunks to avoid overwhelming the network
-      const chunkSize = 1000;
-      const totalPixels = canvasInfo.width * canvasInfo.height;
-      let foundPixels = 0;
+      // Get all PixelsPurchased events from the contract
+      console.log('Querying PixelsPurchased events...');
+      const filter = contract.filters.PixelsPurchased();
+      const events = await contract.queryFilter(filter, 0);
       
-      for (let start = 0; start < totalPixels; start += chunkSize) {
-        const end = Math.min(start + chunkSize, totalPixels);
-        const chunk = [];
-        
-        for (let id = start; id < end; id++) {
-          chunk.push(id);
-        }
-        
-        console.log(`Checking pixels ${start} to ${end - 1}...`);
+      console.log(`Found ${events.length} purchase events`);
+      
+      // Extract unique pixel IDs from all events
+      const pixelIds = new Set<number>();
+      events.forEach(event => {
+        const pixelIdsArray = event.args?.pixelIds || [];
+        pixelIdsArray.forEach((id: any) => {
+          pixelIds.add(Number(id));
+        });
+      });
+      
+      console.log(`Total unique pixels purchased: ${pixelIds.size}`);
+      
+      // Now fetch current state for these specific pixels
+      const pixelIdsArray = Array.from(pixelIds);
+      const chunkSize = 100; // Smaller chunks for better performance
+      
+      for (let i = 0; i < pixelIdsArray.length; i += chunkSize) {
+        const chunk = pixelIdsArray.slice(i, i + chunkSize);
+        console.log(`Loading pixel states ${i + 1}-${Math.min(i + chunkSize, pixelIdsArray.length)} of ${pixelIdsArray.length}...`);
         
         const pixelPromises = chunk.map(id => contract.getPixel(id));
         const results = await Promise.all(pixelPromises);
@@ -207,6 +218,7 @@ export default function PixelCanvas() {
           const id = chunk[index];
           const [owner, lastPaid, color, team] = result;
           
+          // Only add pixels that are still owned (not sold back)
           if (owner !== '0x0000000000000000000000000000000000000000') {
             const x = id % canvasInfo.width;
             const y = Math.floor(id / canvasInfo.width);
@@ -220,20 +232,18 @@ export default function PixelCanvas() {
               x,
               y,
             });
-            foundPixels++;
-            console.log('Found owned pixel:', id, 'at position:', x, y, 'color:', color.toString(16), 'owner:', owner);
           }
         });
-        
-        // Small delay to prevent overwhelming the network
-        await new Promise(resolve => setTimeout(resolve, 100));
       }
       
-      console.log(`Found ${foundPixels} total owned pixels`);
+      console.log(`Found ${newPixels.size} currently owned pixels`);
       setPixels(newPixels);
       
+      // Force redraw
+      setTimeout(() => drawCanvas(), 100);
+      
     } catch (error) {
-      console.error('Failed to find all owned pixels:', error);
+      console.error('Failed to find owned pixels via events:', error);
       setError('Failed to search for owned pixels');
     } finally {
       setIsLoading(false);
@@ -888,7 +898,7 @@ export default function PixelCanvas() {
                   findAllOwnedPixels();
                 }}
               >
-                Find All
+                Load All Pixels
               </Button>
             </div>
 
