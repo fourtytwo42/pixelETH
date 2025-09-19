@@ -241,14 +241,9 @@ export default function PixelCanvas() {
           const pixelX = x * scale + pan.x;
           const pixelY = y * scale + pan.y;
           
-          // Show preview color with transparency
-          ctx.fillStyle = `#${selectedColor.toString(16).padStart(6, '0')}CC`; // Add CC for transparency
+          // Show solid color preview (exactly as it will appear when purchased)
+          ctx.fillStyle = `#${selectedColor.toString(16).padStart(6, '0')}`;
           ctx.fillRect(pixelX, pixelY, scale, scale);
-          
-          // Add selection border
-          ctx.strokeStyle = selectedTeam === 0 ? '#FF0000' : '#0000FF';
-          ctx.lineWidth = 2;
-          ctx.strokeRect(pixelX, pixelY, scale, scale);
         }
       });
     }
