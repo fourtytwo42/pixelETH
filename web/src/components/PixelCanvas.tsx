@@ -109,11 +109,11 @@ export default function PixelCanvas() {
   };
 
   // Load pixel data for visible area (optimized with area checking)
-  const loadPixels = useCallback(async (startX: number, startY: number, endX: number, endY: number) => {
+  const loadPixels = useCallback(async (startX: number, startY: number, endX: number, endY: number, forceReload: boolean = false) => {
     if (!connection || !canvasInfo) return;
 
-    // Skip if we've already loaded this area
-    if (startX >= lastLoadedArea.startX && endX <= lastLoadedArea.endX &&
+    // Skip if we've already loaded this area (unless force reload)
+    if (!forceReload && startX >= lastLoadedArea.startX && endX <= lastLoadedArea.endX &&
         startY >= lastLoadedArea.startY && endY <= lastLoadedArea.endY) {
       return;
     }
@@ -140,7 +140,7 @@ export default function PixelCanvas() {
       for (let y = startY; y <= endY; y++) {
         for (let x = startX; x <= endX; x++) {
           const id = y * canvasInfo.width + x;
-          if (!pixels.has(id)) {
+          if (!pixels.has(id) || forceReload) {
             pixelIds.push(id);
             pixelPromises.push(contract.getPixel(id));
           }
@@ -174,7 +174,7 @@ export default function PixelCanvas() {
     } catch (error) {
       console.error('Failed to load pixels:', error);
     }
-  }, [connection, canvasInfo, pixels, lastLoadedArea]);
+  }, [connection, canvasInfo, lastLoadedArea]);
 
   // Bresenham's line algorithm for smooth line drawing
   const getLinePixels = useCallback((x0: number, y0: number, x1: number, y1: number): Array<{ x: number, y: number }> => {
@@ -318,7 +318,7 @@ export default function PixelCanvas() {
 
     // Load pixels for visible area (debounced)
     const loadTimeout = setTimeout(() => {
-      loadPixels(visibleStartX, visibleStartY, visibleEndX, visibleEndY);
+      loadPixels(visibleStartX, visibleStartY, visibleEndX, visibleEndY, false);
     }, 100);
 
     return () => clearTimeout(loadTimeout);
@@ -577,9 +577,14 @@ export default function PixelCanvas() {
       setSelectedPixelColors(new Map());
       await loadCanvasInfo();
       
-      // Force reload pixels
+      // Force reload pixels by clearing cache and loaded area
       setPixels(new Map());
-      drawCanvas();
+      setLastLoadedArea({ startX: -1, startY: -1, endX: -1, endY: -1 });
+      
+      // Force a complete canvas redraw
+      setTimeout(() => {
+        drawCanvas();
+      }, 100);
 
     } catch (error: any) {
       console.error('Failed to buy pixels:', error);
@@ -731,6 +736,18 @@ export default function PixelCanvas() {
               </Button>
               <Button size="sm" onClick={() => { setScale(4); setPan({ x: 0, y: 0 }); }}>
                 Reset
+              </Button>
+              <Button 
+                size="sm" 
+                variant="secondary"
+                onClick={() => {
+                  setPixels(new Map());
+                  setLastLoadedArea({ startX: -1, startY: -1, endX: -1, endY: -1 });
+                  loadCanvasInfo();
+                  setTimeout(() => drawCanvas(), 100);
+                }}
+              >
+                Refresh
               </Button>
             </div>
 
