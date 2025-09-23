@@ -43,7 +43,6 @@ export default function RootLayout({
         <SessionProvider>
           <Web3Provider>
             <SuspendedBanner />
-            <Header />
             {children}
           </Web3Provider>
         </SessionProvider>
