@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useWeb3 } from './Web3Provider';
 import { getPixelCanvasContract, formatEther, encodeIdsLE, encodeColors24, encodeTeamBits } from '@/lib/web3';
-import InlineColorPicker from './ui/InlineColorPicker';
+import CompactColorPicker from './ui/CompactColorPicker';
 import Modal from './ui/Modal';
 
 interface Pixel {
@@ -745,50 +745,104 @@ export default function PixelCanvas() {
 
   return (
     <>
-      {/* Color Picker Bar */}
-      <InlineColorPicker
-        color={selectedColor}
-        onChange={setSelectedColor}
-        selectedTeam={selectedTeam}
-        onTeamChange={setSelectedTeam}
-      />
+      {/* Streamlined Controls Bar */}
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm">
+        <div className="px-6 py-4">
+          <div className="flex items-center justify-between">
+            {/* Left: Drawing Tools */}
+            <div className="flex items-center gap-6">
+              {/* Team Selection */}
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Team:</span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setSelectedTeam(0)}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                      selectedTeam === 0
+                        ? 'bg-red-500 text-white shadow-lg scale-105'
+                        : 'bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-800/30'
+                    }`}
+                  >
+                    🔴 Red
+                  </button>
+                  <button
+                    onClick={() => setSelectedTeam(1)}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                      selectedTeam === 1
+                        ? 'bg-blue-500 text-white shadow-lg scale-105'
+                        : 'bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:hover:bg-blue-800/30'
+                    }`}
+                  >
+                    🔵 Blue
+                  </button>
+                </div>
+              </div>
 
-      {/* Action Bar */}
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-3">
-        <div className="flex items-center justify-between max-w-7xl mx-auto">
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-600 dark:text-gray-400">
-              Selected: <span className="font-semibold">{selectedPixels.size}</span> pixels
-            </span>
-            {selectedPixels.size > 0 && (
-              <button
-                onClick={() => {
-                  setSelectedPixels(new Set());
-                  setSelectedPixelColors(new Map());
-                }}
-                className="px-3 py-1 text-sm bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded transition-colors"
-              >
-                Clear Selection
-              </button>
-            )}
+              {/* Color Picker */}
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Color:</span>
+                <CompactColorPicker
+                  color={selectedColor}
+                  onChange={setSelectedColor}
+                />
+                <span className="text-xs font-mono text-gray-500 dark:text-gray-400">
+                  #{selectedColor.toString(16).padStart(6, '0').toUpperCase()}
+                </span>
+              </div>
+            </div>
+
+            {/* Center: Selection Info */}
+            <div className="flex items-center gap-4">
+              {selectedPixels.size > 0 ? (
+                <>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                    Selected: <span className="font-semibold text-gray-900 dark:text-white">{selectedPixels.size}</span> pixels
+                  </div>
+                  <button
+                    onClick={() => {
+                      setSelectedPixels(new Set());
+                      setSelectedPixelColors(new Map());
+                    }}
+                    className="px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors"
+                  >
+                    Clear
+                  </button>
+                </>
+              ) : (
+                <div className="text-sm text-gray-500 dark:text-gray-400">
+                  Click pixels to select and paint them
+                </div>
+              )}
+            </div>
+
+            {/* Right: Buy Button */}
+            <div>
+              {selectedPixels.size > 0 && (
+                <button
+                  onClick={preparePurchase}
+                  disabled={isLoading}
+                  className="px-6 py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 disabled:opacity-50 text-white rounded-xl transition-all font-semibold shadow-lg hover:shadow-xl transform hover:scale-105"
+                >
+                  {isLoading ? (
+                    <span className="flex items-center gap-2">
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                      Calculating...
+                    </span>
+                  ) : (
+                    `Buy ${selectedPixels.size} Pixel${selectedPixels.size !== 1 ? 's' : ''}`
+                  )}
+                </button>
+              )}
+            </div>
           </div>
 
-          {selectedPixels.size > 0 && (
-            <button
-              onClick={preparePurchase}
-              disabled={isLoading}
-              className="px-6 py-2 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-lg transition-colors font-medium"
-            >
-              {isLoading ? 'Calculating...' : `Buy ${selectedPixels.size} Pixel${selectedPixels.size !== 1 ? 's' : ''}`}
-            </button>
+          {/* Error Message */}
+          {error && (
+            <div className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-800 dark:text-red-200">
+              {error}
+            </div>
           )}
         </div>
-
-        {error && (
-          <div className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-sm text-red-800 dark:text-red-200 max-w-7xl mx-auto">
-            {error}
-          </div>
-        )}
       </div>
 
       {/* Main Canvas */}
