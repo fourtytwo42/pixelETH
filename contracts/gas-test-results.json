@@ -1,0 +1,372 @@
+{
+  "testConfig": {
+    "canvasSize": "1000x1000",
+    "basePrice": "0.001",
+    "timestamp": "2025-09-23T03:25:35.563Z"
+  },
+  "results": [
+    {
+      "numPixels": 1,
+      "gasUsed": 112112,
+      "gasCostETH": "0.0001894338133688",
+      "pixelCostETH": "0.001",
+      "description": "New pixels batch",
+      "isResale": false,
+      "successful": true
+    },
+    {
+      "numPixels": 5,
+      "gasUsed": 195715,
+      "gasCostETH": "0.000313949864928245",
+      "pixelCostETH": "0.00875",
+      "description": "New pixels batch",
+      "isResale": false,
+      "successful": true
+    },
+    {
+      "numPixels": 10,
+      "gasUsed": 339002,
+      "gasCostETH": "0.000518533438975282",
+      "pixelCostETH": "0.0139162",
+      "description": "New pixels batch",
+      "isResale": false,
+      "successful": true
+    },
+    {
+      "numPixels": 25,
+      "gasUsed": 769286,
+      "gasCostETH": "0.001126916075226634",
+      "pixelCostETH": "0.02775",
+      "description": "New pixels batch",
+      "isResale": false,
+      "successful": true
+    },
+    {
+      "numPixels": 50,
+      "gasUsed": 1485998,
+      "gasCostETH": "0.00209489348941949",
+      "pixelCostETH": "0.0506828",
+      "description": "New pixels batch",
+      "isResale": false,
+      "successful": true
+    },
+    {
+      "numPixels": 75,
+      "gasUsed": 2202853,
+      "gasCostETH": "0.003003832330867234",
+      "pixelCostETH": "0.0753624",
+      "description": "New pixels batch",
+      "isResale": false,
+      "successful": true
+    },
+    {
+      "numPixels": 100,
+      "gasUsed": 2919611,
+      "gasCostETH": "0.003867998632025549",
+      "pixelCostETH": "0.1005058",
+      "description": "New pixels batch",
+      "isResale": false,
+      "successful": true
+    },
+    {
+      "numPixels": 150,
+      "gasUsed": 4353229,
+      "gasCostETH": "0.005624949084399255",
+      "pixelCostETH": "0.1510514",
+      "description": "New pixels batch",
+      "isResale": false,
+      "successful": true
+    },
+    {
+      "numPixels": 200,
+      "gasUsed": 4996671,
+      "gasCostETH": "0.006326853214632648",
+      "pixelCostETH": "0.22799387196",
+      "description": "New pixels batch",
+      "isResale": false,
+      "successful": true
+    },
+    {
+      "numPixels": 250,
+      "gasUsed": 5600721,
+      "gasCostETH": "0.006967419182138709",
+      "pixelCostETH": "0.29979036137",
+      "description": "New pixels batch",
+      "isResale": false,
+      "successful": true
+    },
+    {
+      "numPixels": 300,
+      "gasUsed": 6222822,
+      "gasCostETH": "0.007622386018527144",
+      "pixelCostETH": "0.37245521737",
+      "description": "New pixels batch",
+      "isResale": false,
+      "successful": true
+    },
+    {
+      "numPixels": 400,
+      "gasUsed": 8276680,
+      "gasCostETH": "0.01000201812337672",
+      "pixelCostETH": "0.534626462822393",
+      "description": "New pixels batch",
+      "isResale": false,
+      "successful": true
+    },
+    {
+      "numPixels": 500,
+      "gasUsed": 9516575,
+      "gasCostETH": "0.011389230954700975",
+      "pixelCostETH": "0.725756858835125",
+      "description": "New pixels batch",
+      "isResale": false,
+      "successful": true
+    },
+    {
+      "numPixels": 1,
+      "gasUsed": 69866,
+      "gasCostETH": "0.000081664781651398",
+      "pixelCostETH": "0.00138924852",
+      "description": "Resale batch",
+      "isResale": true,
+      "successful": true
+    },
+    {
+      "numPixels": 5,
+      "gasUsed": 141424,
+      "gasCostETH": "0.000162335796092736",
+      "pixelCostETH": "0.007451917358622",
+      "description": "Resale batch",
+      "isResale": true,
+      "successful": true
+    },
+    {
+      "numPixels": 10,
+      "gasUsed": 186026,
+      "gasCostETH": "0.000210126967505584",
+      "pixelCostETH": "0.017182064007745583",
+      "description": "Resale batch",
+      "isResale": true,
+      "successful": true
+    },
+    {
+      "numPixels": 25,
+      "gasUsed": 372544,
+      "gasCostETH": "0.000414851289898432",
+      "pixelCostETH": "0.044840092148266828",
+      "description": "Resale batch",
+      "isResale": true,
+      "successful": true
+    },
+    {
+      "numPixels": 50,
+      "gasUsed": 681944,
+      "gasCostETH": "0.000749947703907616",
+      "pixelCostETH": "0.099362829929056221",
+      "description": "Resale batch",
+      "isResale": true,
+      "successful": true
+    },
+    {
+      "numPixels": 75,
+      "gasUsed": 989618,
+      "gasCostETH": "0.001076528248819506",
+      "pixelCostETH": "0.183101996563074448",
+      "description": "Resale batch",
+      "isResale": true,
+      "successful": true
+    },
+    {
+      "numPixels": 100,
+      "gasUsed": 1297205,
+      "gasCostETH": "0.001397827268094985",
+      "pixelCostETH": "0.317199578577076076",
+      "description": "Resale batch",
+      "isResale": true,
+      "successful": true
+    },
+    {
+      "numPixels": 1250,
+      "gasUsed": 0,
+      "gasCostETH": "0",
+      "pixelCostETH": "0",
+      "description": "Binary search test",
+      "isResale": false,
+      "successful": false,
+      "error": "VM Exception while processing transaction: reverted with custom error 'BatchTooLarge()'"
+    },
+    {
+      "numPixels": 874,
+      "gasUsed": 25123308,
+      "gasCostETH": "0.026638162901951244",
+      "pixelCostETH": "0.8734036",
+      "description": "Binary search test",
+      "isResale": false,
+      "successful": true
+    },
+    {
+      "numPixels": 1062,
+      "gasUsed": 0,
+      "gasCostETH": "0",
+      "pixelCostETH": "0",
+      "description": "Binary search test",
+      "isResale": false,
+      "successful": false,
+      "error": "VM Exception while processing transaction: reverted with custom error 'BatchTooLarge()'"
+    },
+    {
+      "numPixels": 968,
+      "gasUsed": 16866055,
+      "gasCostETH": "0.017833387868106705",
+      "pixelCostETH": "1.3052890125",
+      "description": "Binary search test",
+      "isResale": false,
+      "successful": true
+    },
+    {
+      "numPixels": 1015,
+      "gasUsed": 0,
+      "gasCostETH": "0",
+      "pixelCostETH": "0",
+      "description": "Binary search test",
+      "isResale": false,
+      "successful": false,
+      "error": "VM Exception while processing transaction: reverted with custom error 'BatchTooLarge()'"
+    },
+    {
+      "numPixels": 991,
+      "gasUsed": 15999725,
+      "gasCostETH": "0.016817108710976",
+      "pixelCostETH": "1.7295342440155",
+      "description": "Binary search test",
+      "isResale": false,
+      "successful": true
+    },
+    {
+      "numPixels": 1003,
+      "gasUsed": 0,
+      "gasCostETH": "0",
+      "pixelCostETH": "0",
+      "description": "Binary search test",
+      "isResale": false,
+      "successful": false,
+      "error": "VM Exception while processing transaction: reverted with custom error 'BatchTooLarge()'"
+    },
+    {
+      "numPixels": 997,
+      "gasUsed": 15801261,
+      "gasCostETH": "0.016515178326285135",
+      "pixelCostETH": "2.123576864068590312",
+      "description": "Binary search test",
+      "isResale": false,
+      "successful": true
+    },
+    {
+      "numPixels": 1000,
+      "gasUsed": 14163466,
+      "gasCostETH": "0.014807658901653656",
+      "pixelCostETH": "2.789224903901583487",
+      "description": "Binary search test",
+      "isResale": false,
+      "successful": true
+    },
+    {
+      "numPixels": 1001,
+      "gasUsed": 0,
+      "gasCostETH": "0",
+      "pixelCostETH": "0",
+      "description": "Binary search test",
+      "isResale": false,
+      "successful": false,
+      "error": "VM Exception while processing transaction: reverted with custom error 'BatchTooLarge()'"
+    },
+    {
+      "numPixels": 995,
+      "gasUsed": 15596145,
+      "gasCostETH": "0.016213966555051575",
+      "pixelCostETH": "2.9249670084786418",
+      "description": "Boundary test",
+      "isResale": false,
+      "successful": true
+    },
+    {
+      "numPixels": 997,
+      "gasUsed": 14110821,
+      "gasCostETH": "0.014672580276855951",
+      "pixelCostETH": "3.721473331589975655",
+      "description": "Boundary test",
+      "isResale": false,
+      "successful": true
+    },
+    {
+      "numPixels": 999,
+      "gasUsed": 14131685,
+      "gasCostETH": "0.01469010619214827",
+      "pixelCostETH": "4.567515311110287259",
+      "description": "Boundary test",
+      "isResale": false,
+      "successful": true
+    },
+    {
+      "numPixels": 1001,
+      "gasUsed": 0,
+      "gasCostETH": "0",
+      "pixelCostETH": "0",
+      "description": "Boundary test",
+      "isResale": false,
+      "successful": false,
+      "error": "VM Exception while processing transaction: reverted with custom error 'BatchTooLarge()'"
+    },
+    {
+      "numPixels": 1003,
+      "gasUsed": 0,
+      "gasCostETH": "0",
+      "pixelCostETH": "0",
+      "description": "Boundary test",
+      "isResale": false,
+      "successful": false,
+      "error": "VM Exception while processing transaction: reverted with custom error 'BatchTooLarge()'"
+    },
+    {
+      "numPixels": 1005,
+      "gasUsed": 0,
+      "gasCostETH": "0",
+      "pixelCostETH": "0",
+      "description": "Boundary test",
+      "isResale": false,
+      "successful": false,
+      "error": "VM Exception while processing transaction: reverted with custom error 'BatchTooLarge()'"
+    },
+    {
+      "numPixels": 25,
+      "gasUsed": 368134,
+      "gasCostETH": "0.000376780522660022",
+      "pixelCostETH": "0.186633782973777109",
+      "description": "Mixed ownership (12 owned, 13 new)",
+      "isResale": false,
+      "successful": true
+    },
+    {
+      "numPixels": 50,
+      "gasUsed": 678089,
+      "gasCostETH": "0.000692073608498751",
+      "pixelCostETH": "0.255011716851743322",
+      "description": "Mixed ownership (25 owned, 25 new)",
+      "isResale": false,
+      "successful": true
+    },
+    {
+      "numPixels": 100,
+      "gasUsed": 1299255,
+      "gasCostETH": "0.001322852268096015",
+      "pixelCostETH": "0.337516010327756814",
+      "description": "Mixed ownership (50 owned, 50 new)",
+      "isResale": false,
+      "successful": true
+    }
+  ],
+  "summary": {
+    "maxSuccessful": 1000,
+    "recommendedMax": 900
+  }
+}

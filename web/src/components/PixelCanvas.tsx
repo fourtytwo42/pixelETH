@@ -5,6 +5,8 @@ import { useWeb3 } from './Web3Provider';
 import { getPixelCanvasContract, formatEther, encodeIdsLE, encodeColors24, encodeTeamBits } from '@/lib/web3';
 import CompactColorPicker from './ui/CompactColorPicker';
 import Modal from './ui/Modal';
+import BatchTransactionProgress from './ui/BatchTransactionProgress';
+import { StampData, calculateStampBatches, TransactionBatch } from '@/lib/imageProcessing';
 
 interface Pixel {
   id: number;
@@ -24,7 +26,12 @@ interface CanvasInfo {
   blueCount: number;
 }
 
-export default function PixelCanvas() {
+interface PixelCanvasProps {
+  selectedStamp?: StampData | null;
+  onStampApplied?: () => void;
+}
+
+export default function PixelCanvas({ selectedStamp, onStampApplied }: PixelCanvasProps = {}) {
   const { connection } = useWeb3();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   
@@ -52,6 +59,15 @@ export default function PixelCanvas() {
   const [dragMode, setDragMode] = useState<'line' | 'rectangle'>('line');
   const [dragPath, setDragPath] = useState<Array<{ x: number, y: number }>>([]); 
   const [showPurchaseModal, setShowPurchaseModal] = useState(false);
+  
+  // Stamp functionality
+  const [stampPreviewPosition, setStampPreviewPosition] = useState<{ x: number; y: number } | null>(null);
+  const [showBatchProgress, setShowBatchProgress] = useState(false);
+  const [currentBatches, setCurrentBatches] = useState<TransactionBatch[]>([]);
+  const [currentBatch, setCurrentBatch] = useState(0);
+  const [completedBatches, setCompletedBatches] = useState<Set<number>>(new Set());
+  const [isBatchProcessing, setIsBatchProcessing] = useState(false);
+  
   const [purchaseDetails, setPurchaseDetails] = useState<{
     pixelCount: number;
     totalCost: bigint;
@@ -217,6 +233,132 @@ export default function PixelCanvas() {
     }
   };
 
+  // Stamp handling functions
+  const handleStampClick = async (startX: number, startY: number) => {
+    console.log('🎯 handleStampClick called:', { startX, startY, selectedStamp: !!selectedStamp, canvasInfo: !!canvasInfo, connection: !!connection });
+    
+    if (!selectedStamp || !canvasInfo || !connection) {
+      console.log('❌ Missing requirements:', { selectedStamp: !!selectedStamp, canvasInfo: !!canvasInfo, connection: !!connection });
+      return;
+    }
+
+    try {
+      console.log('🧮 Calculating stamp batches...', {
+        stampSize: `${selectedStamp.processedImage.width}x${selectedStamp.processedImage.height}`,
+        startPosition: `${startX},${startY}`,
+        canvasSize: `${canvasInfo.width}x${canvasInfo.height}`,
+        selectedTeam
+      });
+
+      // Calculate batches for this stamp
+      const batches = calculateStampBatches(
+        selectedStamp.processedImage,
+        startX,
+        startY,
+        canvasInfo.width,
+        canvasInfo.height,
+        selectedTeam,
+        900 // maxBatchSize from contract
+      );
+
+      console.log('📦 Generated batches:', batches.length, 'batches');
+
+      if (batches.length === 0) {
+        console.log('❌ No batches generated - stamp outside bounds');
+        setError('Stamp is outside canvas bounds');
+        return;
+      }
+
+      // Calculate total cost for all batches
+      const contract = getPixelCanvasContract(connection);
+      let totalCost = BigInt(0);
+
+      for (const batch of batches) {
+        for (const pixelId of batch.pixelIds) {
+          const price = await contract.quotePrice(pixelId, selectedTeam);
+          totalCost += price;
+        }
+      }
+
+      // Set up batch processing
+      console.log('🎯 Setting up batch processing...', {
+        batchCount: batches.length,
+        totalCost: formatEther(totalCost) + ' ETH'
+      });
+      
+      setCurrentBatches(batches);
+      setCurrentBatch(0);
+      setCompletedBatches(new Set());
+      setShowBatchProgress(true);
+
+      console.log(`✅ Stamp will be applied in ${batches.length} batches, total cost: ${formatEther(totalCost)} ETH`);
+
+    } catch (error: any) {
+      console.error('Failed to prepare stamp:', error);
+      setError(error.reason || error.message || 'Failed to prepare stamp application');
+    }
+  };
+
+  const executeBatch = async (batchIndex: number) => {
+    if (!connection || batchIndex >= currentBatches.length) return;
+
+    const batch = currentBatches[batchIndex];
+    setIsBatchProcessing(true);
+    setCurrentBatch(batchIndex);
+
+    try {
+      const contract = getPixelCanvasContract(connection);
+
+      // Calculate total cost for this batch
+      let batchCost = BigInt(0);
+      for (const pixelId of batch.pixelIds) {
+        const price = await contract.quotePrice(pixelId, selectedTeam);
+        batchCost += price;
+      }
+
+      // Encode the data
+      const idsLE = encodeIdsLE(batch.pixelIds);
+      const colors24 = encodeColors24(batch.colors);
+      const teamBits = encodeTeamBits(batch.teams);
+
+      // Execute the transaction
+      const tx = await contract.buyPacked(idsLE, colors24, teamBits, batchCost, {
+        value: batchCost
+      });
+
+      await tx.wait();
+
+      // Mark batch as completed
+      setCompletedBatches(prev => new Set([...Array.from(prev), batchIndex]));
+
+      console.log(`Batch ${batchIndex + 1}/${currentBatches.length} completed`);
+
+      // Check if all batches are done
+      if (completedBatches.size + 1 === currentBatches.length) {
+        // All done!
+        setTimeout(() => {
+          setShowBatchProgress(false);
+          setCurrentBatches([]);
+          setCompletedBatches(new Set());
+          onStampApplied?.();
+        }, 2000);
+      }
+
+    } catch (error: any) {
+      console.error(`Failed to execute batch ${batchIndex + 1}:`, error);
+      setError(error.reason || error.message || `Failed to execute batch ${batchIndex + 1}`);
+    } finally {
+      setIsBatchProcessing(false);
+    }
+  };
+
+  const cancelBatchProcess = () => {
+    setShowBatchProgress(false);
+    setCurrentBatches([]);
+    setCompletedBatches(new Set());
+    setIsBatchProcessing(false);
+  };
+
   // Prepare purchase and show confirmation modal
   const preparePurchase = async () => {
     if (!connection || selectedPixels.size === 0) return;
@@ -231,21 +373,72 @@ export default function PixelCanvas() {
       // Get colors for each selected pixel
       const colors = pixelIds.map(id => selectedPixelColors.get(id) || selectedColor);
 
-      // Calculate total cost
-      let totalCost = BigInt(0);
-      for (const id of pixelIds) {
-        const price = await contract.quotePrice(id, selectedTeam);
-        totalCost += price;
-      }
+      // Check if we need batch processing (>900 pixels)
+      if (pixelIds.length > 900) {
+        // Calculate total cost
+        let totalCost = BigInt(0);
+        for (const id of pixelIds) {
+          const price = await contract.quotePrice(id, selectedTeam);
+          totalCost += price;
+        }
 
-      // Set purchase details and show modal
-      setPurchaseDetails({
-        pixelCount: pixelIds.length,
-        totalCost,
-        pixelIds,
-        colors
-      });
-      setShowPurchaseModal(true);
+        // Create batches for large selections
+        const teams = pixelIds.map(() => selectedTeam);
+        const allPixels: { id: number; color: number; team: number }[] = pixelIds.map((id, i) => ({
+          id,
+          color: colors[i],
+          team: selectedTeam
+        }));
+
+        // Split into batches
+        const batches: TransactionBatch[] = [];
+        const totalBatches = Math.ceil(allPixels.length / 900);
+        
+        for (let i = 0; i < totalBatches; i++) {
+          const start = i * 900;
+          const end = Math.min(start + 900, allPixels.length);
+          const batchPixels = allPixels.slice(start, end);
+          
+          batches.push({
+            batchIndex: i + 1,
+            totalBatches,
+            pixelIds: batchPixels.map(p => p.id),
+            colors: batchPixels.map(p => p.color),
+            teams: batchPixels.map(p => p.team),
+            description: `Selection batch ${i + 1}/${totalBatches} (${batchPixels.length} pixels)`
+          });
+        }
+
+        // Set up batch processing
+        setCurrentBatches(batches);
+        setCurrentBatch(0);
+        setCompletedBatches(new Set());
+        setShowBatchProgress(true);
+
+        console.log(`Large selection will be processed in ${batches.length} batches, total cost: ${formatEther(totalCost)} ETH`);
+        
+        // Clear selection after setting up batches
+        setSelectedPixels(new Set());
+        setSelectedPixelColors(new Map());
+        
+      } else {
+        // Normal single transaction flow
+        // Calculate total cost
+        let totalCost = BigInt(0);
+        for (const id of pixelIds) {
+          const price = await contract.quotePrice(id, selectedTeam);
+          totalCost += price;
+        }
+
+        // Set purchase details and show modal
+        setPurchaseDetails({
+          pixelCount: pixelIds.length,
+          totalCost,
+          pixelIds,
+          colors
+        });
+        setShowPurchaseModal(true);
+      }
 
     } catch (error: any) {
       console.error('Failed to prepare purchase:', error);
@@ -336,9 +529,25 @@ export default function PixelCanvas() {
       setIsPanning(true);
       setLastPanPoint({ x: e.clientX, y: e.clientY });
       document.body.style.cursor = 'grabbing';
-    } else if (e.button === 0) { // Left click for pixel selection
+    } else if (e.button === 0) { // Left click for pixel selection or stamp
       const pixelId = getPixelFromMouse(e);
+      console.log('🖱️ Mouse click:', { 
+        pixelId, 
+        selectedStamp: selectedStamp?.name || 'none',
+        canvasInfo: !!canvasInfo,
+        mousePos: { clientX: e.clientX, clientY: e.clientY }
+      });
+      
       if (pixelId !== null) {
+        // Handle stamp application
+        if (selectedStamp && canvasInfo) {
+          console.log('🎨 Stamp click detected!', { pixelId, selectedStamp: selectedStamp.name });
+          const x = pixelId % canvasInfo.width;
+          const y = Math.floor(pixelId / canvasInfo.width);
+          console.log('📍 Converting to coordinates:', { x, y });
+          handleStampClick(x, y);
+          return;
+        }
         const newSelected = new Set(selectedPixels);
         const newColors = new Map(selectedPixelColors);
         
@@ -376,6 +585,16 @@ export default function PixelCanvas() {
 
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     e.preventDefault();
+    
+    // Handle stamp preview
+    if (selectedStamp && canvasInfo) {
+      const pixelId = getPixelFromMouse(e);
+      if (pixelId !== null) {
+        const x = pixelId % canvasInfo.width;
+        const y = Math.floor(pixelId / canvasInfo.width);
+        setStampPreviewPosition({ x, y });
+      }
+    }
     
     if (isPanning) {
       const deltaX = e.clientX - lastPanPoint.x;
@@ -705,7 +924,55 @@ export default function PixelCanvas() {
       }
     }
 
-  }, [canvasInfo, pixels, selectedPixels, selectedPixelColors, hoveredOwner, scale, pan, initialPixelsLoaded, isDragging, dragMode, dragStart, dragEnd, selectedColor]);
+    // Draw stamp preview
+    if (selectedStamp && stampPreviewPosition && canvasInfo) {
+      const { x: startX, y: startY } = stampPreviewPosition;
+      const { width: stampWidth, height: stampHeight, pixels: stampPixels } = selectedStamp.processedImage;
+      
+      // Draw stamp preview with transparency
+      ctx.globalAlpha = 0.7;
+      for (let y = 0; y < stampHeight; y++) {
+        for (let x = 0; x < stampWidth; x++) {
+          const canvasX = startX + x;
+          const canvasY = startY + y;
+          
+          // Check bounds
+          if (canvasX >= 0 && canvasX < canvasInfo.width && canvasY >= 0 && canvasY < canvasInfo.height) {
+            const pixelX = canvasX * scale + pan.x;
+            const pixelY = canvasY * scale + pan.y;
+            
+            // Only draw if visible
+            if (pixelX >= -scale && pixelX < canvas.width && pixelY >= -scale && pixelY < canvas.height) {
+              const color = stampPixels[y][x];
+              ctx.fillStyle = `#${color.toString(16).padStart(6, '0')}`;
+              ctx.fillRect(pixelX, pixelY, scale, scale);
+              
+              // Add border for stamp preview
+              if (scale >= 2) {
+                ctx.strokeStyle = '#000000';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(pixelX, pixelY, scale, scale);
+              }
+            }
+          }
+        }
+      }
+      ctx.globalAlpha = 1.0; // Reset transparency
+      
+      // Draw stamp outline
+      if (scale >= 1) {
+        ctx.strokeStyle = '#ff00ff'; // Magenta outline for stamp
+        ctx.lineWidth = 2;
+        ctx.strokeRect(
+          startX * scale + pan.x,
+          startY * scale + pan.y,
+          stampWidth * scale,
+          stampHeight * scale
+        );
+      }
+    }
+
+  }, [canvasInfo, pixels, selectedPixels, selectedPixelColors, hoveredOwner, scale, pan, initialPixelsLoaded, isDragging, dragMode, dragStart, dragEnd, selectedColor, selectedStamp, stampPreviewPosition]);
 
   // Draw canvas when dependencies change
   useEffect(() => {
@@ -1019,6 +1286,22 @@ export default function PixelCanvas() {
           </div>
         )}
       </Modal>
+
+      {/* Batch Transaction Progress Modal */}
+      {showBatchProgress && (
+        <BatchTransactionProgress
+          batches={currentBatches}
+          currentBatch={currentBatch}
+          isProcessing={isBatchProcessing}
+          completedBatches={completedBatches}
+          onExecuteBatch={executeBatch}
+          onCancel={cancelBatchProcess}
+          totalCost={currentBatches.reduce((total, batch) => {
+            // Calculate total ETH for display
+            return total + batch.pixelIds.length * 0.001; // Rough estimate
+          }, 0).toFixed(3)}
+        />
+      )}
     </>
   );
 }

@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Clear Wallet Cache</title>
+</head>
+<body>
+    <h1>🧹 Clear Wallet Cache</h1>
+    <p>This will clear all cached wallet connection data.</p>
+    <button onclick="clearCache()">Clear Cache</button>
+    <div id="result"></div>
+
+    <script>
+        function clearCache() {
+            // Clear wallet-related localStorage items
+            localStorage.removeItem('pixeleth.wallet.connection');
+            
+            // Clear any MetaMask-related cache
+            if (window.ethereum) {
+                // Force MetaMask to refresh connection state
+                window.ethereum.request({ method: 'eth_accounts' })
+                    .then(accounts => {
+                        document.getElementById('result').innerHTML = 
+                            '<p style="color: green;">✅ Cache cleared! Current accounts: ' + 
+                            (accounts.length > 0 ? accounts[0] : 'None') + '</p>' +
+                            '<p>Refresh the main page to see changes.</p>';
+                    })
+                    .catch(error => {
+                        document.getElementById('result').innerHTML = 
+                            '<p style="color: red;">❌ Error: ' + error.message + '</p>';
+                    });
+            } else {
+                document.getElementById('result').innerHTML = 
+                    '<p style="color: orange;">⚠️ MetaMask not found, but cache cleared.</p>';
+            }
+        }
+    </script>
+</body>
+</html>

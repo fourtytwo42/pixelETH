@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>🔄 Reset Connection</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
+        button { padding: 10px 20px; margin: 10px; font-size: 16px; cursor: pointer; }
+        .reset { background: #ef4444; color: white; border: none; border-radius: 5px; }
+        .test { background: #10b981; color: white; border: none; border-radius: 5px; }
+        .result { margin: 20px 0; padding: 15px; border-radius: 5px; }
+        .success { background: #d1fae5; border: 1px solid #10b981; }
+        .error { background: #fee2e2; border: 1px solid #ef4444; }
+    </style>
+</head>
+<body>
+    <h1>🔄 Connection Reset Tool</h1>
+    <p>This will completely reset the wallet connection and clear all cached data.</p>
+    
+    <button class="reset" onclick="fullReset()">🧹 Full Reset</button>
+    <button class="test" onclick="testConnection()">🧪 Test Connection</button>
+    
+    <div id="result"></div>
+
+    <script>
+        function showResult(message, isSuccess = true) {
+            document.getElementById('result').innerHTML = 
+                `<div class="result ${isSuccess ? 'success' : 'error'}">${message}</div>`;
+        }
+
+        function fullReset() {
+            try {
+                // Clear all localStorage
+                localStorage.clear();
+                
+                // Clear sessionStorage
+                sessionStorage.clear();
+                
+                // Force MetaMask to refresh
+                if (window.ethereum) {
+                    // Clear any cached accounts
+                    window.ethereum.request({ method: 'eth_accounts' })
+                        .then(() => {
+                            showResult(`
+                                ✅ Reset Complete!<br>
+                                • localStorage cleared<br>
+                                • sessionStorage cleared<br>
+                                • MetaMask cache refreshed<br><br>
+                                <strong>Next steps:</strong><br>
+                                1. Refresh the main page<br>
+                                2. Reconnect MetaMask<br>
+                                3. Make sure you're on Localhost 8545 network
+                            `);
+                        })
+                        .catch(error => {
+                            showResult(`❌ Reset with warning: ${error.message}`, false);
+                        });
+                } else {
+                    showResult(`
+                        ⚠️ Partial Reset Complete<br>
+                        • localStorage cleared<br>
+                        • sessionStorage cleared<br>
+                        • MetaMask not detected<br><br>
+                        Please refresh the main page.
+                    `, false);
+                }
+            } catch (error) {
+                showResult(`❌ Reset failed: ${error.message}`, false);
+            }
+        }
+
+        async function testConnection() {
+            try {
+                if (!window.ethereum) {
+                    showResult('❌ MetaMask not detected', false);
+                    return;
+                }
+
+                const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+                const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+                
+                showResult(`
+                    🔍 Connection Status:<br>
+                    • Accounts: ${accounts.length > 0 ? accounts[0] : 'None'}<br>
+                    • Chain ID: ${chainId}<br>
+                    • Expected: 31337 (0x7a69)<br>
+                    • Status: ${chainId === '0x7a69' ? '✅ Correct network' : '❌ Wrong network'}
+                `);
+                
+            } catch (error) {
+                showResult(`❌ Test failed: ${error.message}`, false);
+            }
+        }
+
+        // Auto-test on load
+        window.onload = () => {
+            setTimeout(testConnection, 1000);
+        };
+    </script>
+</body>
+</html>

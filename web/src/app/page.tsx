@@ -5,6 +5,9 @@ import { useWeb3 } from '@/components/Web3Provider';
 import { useState, useEffect } from 'react';
 import { getProvider, formatEther, connectHardhatLocal } from '@/lib/web3';
 import { ethers } from 'ethers';
+import ImageUpload from '@/components/ui/ImageUpload';
+import StampGallery from '@/components/ui/StampGallery';
+import { StampData } from '@/lib/imageProcessing';
 
 export default function Home() {
   const { connection, isConnecting, connectWallet, disconnectWallet } = useWeb3();
@@ -12,6 +15,11 @@ export default function Home() {
   const [isLoadingBalance, setIsLoadingBalance] = useState(false);
   const [isRequestingFaucet, setIsRequestingFaucet] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  
+  // Stamp functionality
+  const [stamps, setStamps] = useState<StampData[]>([]);
+  const [selectedStamp, setSelectedStamp] = useState<StampData | null>(null);
+  const [stampError, setStampError] = useState<string | null>(null);
 
   // Fetch balance when connected
   useEffect(() => {
@@ -98,6 +106,24 @@ export default function Home() {
 
   const shortenAddress = (address: string) => {
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  };
+
+  // Stamp handlers
+  const handleStampCreated = (stamp: StampData) => {
+    setStamps(prev => [...prev, stamp]);
+    setStampError(null);
+  };
+
+  const handleStampError = (error: string) => {
+    setStampError(error);
+    setTimeout(() => setStampError(null), 5000);
+  };
+
+  const handleDeleteStamp = (stampId: string) => {
+    setStamps(prev => prev.filter(s => s.id !== stampId));
+    if (selectedStamp?.id === stampId) {
+      setSelectedStamp(null);
+    }
   };
 
   return (
@@ -230,11 +256,55 @@ export default function Home() {
             </div>
           </div>
         </div>
+
+        {/* Second Row - Tools */}
+        <div className="px-6 py-2 bg-white/50 dark:bg-gray-800/50">
+          <div className="flex items-center justify-between">
+            {/* Left: Stamps */}
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">🎨 Tools:</span>
+                <ImageUpload 
+                  onStampCreated={handleStampCreated}
+                  onError={handleStampError}
+                  className="text-xs"
+                />
+              </div>
+              
+              {stamps.length > 0 && (
+                <StampGallery 
+                  stamps={stamps}
+                  selectedStamp={selectedStamp}
+                  onSelectStamp={setSelectedStamp}
+                  onDeleteStamp={handleDeleteStamp}
+                />
+              )}
+            </div>
+
+            {/* Right: Status */}
+            <div className="flex items-center gap-3">
+              {selectedStamp && (
+                <div className="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 rounded-lg text-sm">
+                  📐 Stamp Mode: {selectedStamp.name} ({selectedStamp.processedImage.width}×{selectedStamp.processedImage.height})
+                </div>
+              )}
+              
+              {stampError && (
+                <div className="px-3 py-1 bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300 rounded-lg text-sm">
+                  ❌ {stampError}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Main Canvas Area */}
       <div className="flex-1 flex flex-col">
-        <PixelCanvas />
+        <PixelCanvas 
+          selectedStamp={selectedStamp}
+          onStampApplied={() => setSelectedStamp(null)}
+        />
       </div>
 
       {/* Click outside to close user menu */}

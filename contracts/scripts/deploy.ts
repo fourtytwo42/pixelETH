@@ -12,8 +12,8 @@ async function main() {
   
   // Deployment parameters
   const TREASURY = deployer.address; // Use deployer as initial treasury
-  const BASE_PRICE = ethers.parseEther("0.001"); // 0.001 ETH base price
-  const MAX_BATCH = 250; // Conservative batch size for gas optimization
+  const BASE_PRICE = ethers.parseEther("0.0001"); // 0.0001 ETH base price (reduced 10x)
+  const MAX_BATCH = 900; // Optimized batch size based on comprehensive gas testing
 
   console.log("Deploying PixelCanvasV1...");
 
