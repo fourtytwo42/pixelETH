@@ -25,22 +25,17 @@ interface CanvasInfo {
   blueCount: number;
 }
 
-const COLORS = {
-  RED_TEAM: [
-    0xFF0000, 0xFF4444, 0xFF8888, 0xFFAAAA,
-    0xCC0000, 0x990000, 0x660000, 0x330000,
-    0xFF6600, 0xFF9900, 0xFFCC00, 0xFFFF00,
-  ],
-  BLUE_TEAM: [
-    0x0000FF, 0x4444FF, 0x8888FF, 0xAAAAFF,
-    0x0000CC, 0x000099, 0x000066, 0x000033,
-    0x0066FF, 0x0099FF, 0x00CCFF, 0x00FFFF,
-  ],
-  NEUTRAL: [
-    0x000000, 0x333333, 0x666666, 0x999999,
-    0xCCCCCC, 0xFFFFFF, 0x8B4513, 0x90EE90,
-  ],
-};
+// Quick color presets for easy access
+const QUICK_COLORS = [
+  0xFF0000, // Red
+  0x00FF00, // Green  
+  0x0000FF, // Blue
+  0xFFFF00, // Yellow
+  0xFF00FF, // Magenta
+  0x00FFFF, // Cyan
+  0x000000, // Black
+  0xFFFFFF, // White
+];
 
 export default function PixelCanvas() {
   const { connection } = useWeb3();
@@ -902,7 +897,7 @@ export default function PixelCanvas() {
   const ControlsComponent = () => (
     <Card>
       <CardBody>
-        <div className="flex flex-wrap gap-4 items-center">
+        <div className="flex flex-wrap gap-4 items-start">
           {/* Team Selection */}
           <div className="flex gap-2">
             <Button
@@ -923,18 +918,46 @@ export default function PixelCanvas() {
             </Button>
           </div>
 
-          {/* Color Palette */}
-          <div className="flex flex-wrap gap-1">
-            {(selectedTeam === 0 ? COLORS.RED_TEAM : COLORS.BLUE_TEAM).map((color) => (
-              <button
-                key={color}
-                className={`w-6 h-6 rounded border-2 ${
-                  selectedColor === color ? 'border-black' : 'border-gray-300'
-                }`}
-                style={{ backgroundColor: `#${color.toString(16).padStart(6, '0')}` }}
-                onClick={() => setSelectedColor(color)}
+          {/* Color Picker */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-gray-600 dark:text-gray-300">
+                Color:
+              </label>
+              <input
+                type="color"
+                value={`#${selectedColor.toString(16).padStart(6, '0')}`}
+                onChange={(e) => {
+                  const hexColor = e.target.value;
+                  const colorInt = parseInt(hexColor.slice(1), 16);
+                  setSelectedColor(colorInt);
+                }}
+                className="w-10 h-10 rounded-lg border-2 border-gray-300 dark:border-gray-600 cursor-pointer hover:border-gray-400 dark:hover:border-gray-500 transition-colors"
+                title="Select any 24-bit color"
               />
-            ))}
+              <div 
+                className="w-8 h-8 rounded border-2 border-gray-300 dark:border-gray-600"
+                style={{ backgroundColor: `#${selectedColor.toString(16).padStart(6, '0')}` }}
+                title="Color preview"
+              />
+              <div className="text-xs font-mono text-gray-600 dark:text-gray-400">
+                #{selectedColor.toString(16).padStart(6, '0').toUpperCase()}
+              </div>
+            </div>
+
+            {/* Quick Color Presets */}
+            <div className="flex items-center gap-1">
+              <div className="text-xs text-gray-500 dark:text-gray-400">Quick:</div>
+              {QUICK_COLORS.map((color) => (
+                <button
+                  key={color}
+                  className="w-6 h-6 rounded border border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500 transition-colors"
+                  style={{ backgroundColor: `#${color.toString(16).padStart(6, '0')}` }}
+                  onClick={() => setSelectedColor(color)}
+                  title={`#${color.toString(16).padStart(6, '0').toUpperCase()}`}
+                />
+              ))}
+            </div>
           </div>
 
           {/* Reset Selection Button */}
