@@ -6,6 +6,7 @@ import { getPixelCanvasContract, formatEther, encodeIdsLE, encodeColors24, encod
 import { Card, CardBody } from './ui/Card';
 import Button from './ui/Button';
 import Modal from './ui/Modal';
+import ColorPicker from './ui/ColorPicker';
 
 interface Pixel {
   id: number;
@@ -919,26 +920,15 @@ export default function PixelCanvas() {
           </div>
 
           {/* Color Picker */}
-          <div className="flex flex-col sm:flex-row gap-3">
+          <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
             <div className="flex items-center gap-2">
               <label className="text-sm font-medium text-gray-600 dark:text-gray-300">
                 Color:
               </label>
-              <input
-                type="color"
-                value={`#${selectedColor.toString(16).padStart(6, '0')}`}
-                onChange={(e) => {
-                  const hexColor = e.target.value;
-                  const colorInt = parseInt(hexColor.slice(1), 16);
-                  setSelectedColor(colorInt);
-                }}
-                className="w-10 h-10 rounded-lg border-2 border-gray-300 dark:border-gray-600 cursor-pointer hover:border-gray-400 dark:hover:border-gray-500 transition-colors"
-                title="Select any 24-bit color"
-              />
-              <div 
-                className="w-8 h-8 rounded border-2 border-gray-300 dark:border-gray-600"
-                style={{ backgroundColor: `#${selectedColor.toString(16).padStart(6, '0')}` }}
-                title="Color preview"
+              <ColorPicker
+                color={selectedColor}
+                onChange={setSelectedColor}
+                disabled={isLoading}
               />
               <div className="text-xs font-mono text-gray-600 dark:text-gray-400">
                 #{selectedColor.toString(16).padStart(6, '0').toUpperCase()}
@@ -951,9 +941,10 @@ export default function PixelCanvas() {
               {QUICK_COLORS.map((color) => (
                 <button
                   key={color}
-                  className="w-6 h-6 rounded border border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500 transition-colors"
+                  className="w-6 h-6 rounded border border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   style={{ backgroundColor: `#${color.toString(16).padStart(6, '0')}` }}
                   onClick={() => setSelectedColor(color)}
+                  disabled={isLoading}
                   title={`#${color.toString(16).padStart(6, '0').toUpperCase()}`}
                 />
               ))}
