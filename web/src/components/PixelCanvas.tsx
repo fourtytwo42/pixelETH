@@ -591,8 +591,8 @@ export default function PixelCanvas() {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Clear canvas
-    ctx.fillStyle = '#f0f0f0';
+    // Clear canvas with better contrast background
+    ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     // Calculate visible area
@@ -601,10 +601,23 @@ export default function PixelCanvas() {
     const visibleStartY = Math.max(0, Math.floor(-pan.y / scale));
     const visibleEndY = Math.min(canvasInfo.height - 1, Math.ceil((canvas.height - pan.y) / scale));
 
-    // Draw grid lines (only in visible area and when zoomed in enough)
-    if (scale >= 2) {
-      ctx.strokeStyle = '#e0e0e0';
-      ctx.lineWidth = 0.5;
+    // Draw grid lines (improved visibility)
+    if (scale >= 1) {
+      // Different grid styles based on zoom level
+      if (scale >= 4) {
+        // High zoom: Strong, dark grid
+        ctx.strokeStyle = '#999999';
+        ctx.lineWidth = 1;
+      } else if (scale >= 2) {
+        // Medium zoom: Medium visibility
+        ctx.strokeStyle = '#bbbbbb';
+        ctx.lineWidth = 0.8;
+      } else {
+        // Low zoom: Subtle but visible
+        ctx.strokeStyle = '#d0d0d0';
+        ctx.lineWidth = 0.5;
+      }
+      
       ctx.beginPath();
       
       for (let x = visibleStartX; x <= visibleEndX + 1; x++) {
@@ -846,7 +859,7 @@ export default function PixelCanvas() {
       </div>
 
       {/* Main Canvas */}
-      <div className="flex-1 relative bg-gray-100 dark:bg-gray-900">
+      <div className="flex-1 relative bg-white dark:bg-gray-800">
         <canvas
           ref={canvasRef}
           width={typeof window !== 'undefined' ? window.innerWidth : 1920}
