@@ -36,17 +36,27 @@ export default function ColorPicker({ color, onChange, disabled = false }: Color
   // Close picker when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Node;
+      const target = event.target as Element;
       
-      // Check if the click is inside the picker
+      // Check if the click is inside the picker container
       const isInsidePicker = pickerRef.current?.contains(target);
       const isInsideButton = buttonRef.current?.contains(target);
       
-      // Also check for react-colorful elements that might not be caught by contains()
-      const isColorfulElement = (target as Element)?.closest?.('[class*="react-colorful"]');
+      // More comprehensive check for react-colorful and related elements
+      const isColorfulElement = target?.closest?.('[class*="react-colorful"]') ||
+                                target?.closest?.('[class*="picker"]') ||
+                                target?.classList?.contains('react-colorful__hue') ||
+                                target?.classList?.contains('react-colorful__saturation') ||
+                                target?.classList?.contains('react-colorful__pointer') ||
+                                target?.parentElement?.classList?.contains('react-colorful__hue') ||
+                                target?.parentElement?.classList?.contains('react-colorful__saturation');
+      
+      // Also check if target is within our portal div by checking z-index or specific classes
+      const isWithinPortal = target?.closest?.('[style*="z-index: 10000"]') ||
+                             target?.closest?.('.fixed.z-\\[10000\\]');
       
       // Only close if the click is truly outside all related elements
-      if (!isInsidePicker && !isInsideButton && !isColorfulElement) {
+      if (!isInsidePicker && !isInsideButton && !isColorfulElement && !isWithinPortal) {
         setIsOpen(false);
       }
     };
@@ -54,12 +64,12 @@ export default function ColorPicker({ color, onChange, disabled = false }: Color
     if (isOpen) {
       // Use a slight delay to ensure the DOM is fully rendered
       const timeoutId = setTimeout(() => {
-        document.addEventListener('mousedown', handleClickOutside, true);
-      }, 0);
+        document.addEventListener('mousedown', handleClickOutside, false);
+      }, 100);
       
       return () => {
         clearTimeout(timeoutId);
-        document.removeEventListener('mousedown', handleClickOutside, true);
+        document.removeEventListener('mousedown', handleClickOutside, false);
       };
     }
   }, [isOpen]);
@@ -93,40 +103,22 @@ export default function ColorPicker({ color, onChange, disabled = false }: Color
           left: position.left,
         }}
         onMouseDown={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
+          // Only prevent event from reaching document-level listeners
+          // Don't prevent default or stop propagation within the picker
         }}
         onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-        }}
-        onPointerDown={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
+          // Allow normal click behavior within the picker
         }}
       >
-        <div 
-          className="space-y-3"
-          onMouseDown={(e) => e.stopPropagation()}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div
-            onMouseDown={(e) => e.stopPropagation()}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <HexColorPicker 
-              color={hexColor} 
-              onChange={handleColorChange}
-              style={{ width: '200px', height: '150px' }}
-            />
-          </div>
+        <div className="space-y-3">
+          <HexColorPicker 
+            color={hexColor} 
+            onChange={handleColorChange}
+            style={{ width: '200px', height: '150px' }}
+          />
           
           {/* Hex Input */}
-          <div 
-            className="flex items-center gap-2"
-            onMouseDown={(e) => e.stopPropagation()}
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div className="flex items-center gap-2">
             <label className="text-sm font-medium text-gray-600 dark:text-gray-300">
               Hex:
             </label>
@@ -142,9 +134,6 @@ export default function ColorPicker({ color, onChange, disabled = false }: Color
                   onChange(colorInt);
                 }
               }}
-              onMouseDown={(e) => e.stopPropagation()}
-              onClick={(e) => e.stopPropagation()}
-              onFocus={(e) => e.stopPropagation()}
               className="px-2 py-1 text-sm font-mono border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 w-20"
               placeholder="#000000"
               maxLength={7}
@@ -154,11 +143,7 @@ export default function ColorPicker({ color, onChange, disabled = false }: Color
           {/* Close Button */}
           <button
             type="button"
-            onMouseDown={(e) => e.stopPropagation()}
-            onClick={(e) => {
-              e.stopPropagation();
-              setIsOpen(false);
-            }}
+            onClick={() => setIsOpen(false)}
             className="w-full px-3 py-1 text-sm bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
           >
             Close
