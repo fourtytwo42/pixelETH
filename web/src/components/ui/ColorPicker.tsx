@@ -40,14 +40,12 @@ export default function ColorPicker({ color, onChange, disabled = false }: Color
     onChange(colorInt);
   };
 
-  const handleToggle = (e: React.MouseEvent) => {
+  const handleOpen = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!disabled) {
-      if (!isOpen) {
-        updatePosition();
-      }
-      setIsOpen(!isOpen);
+    if (!disabled && !isOpen) {
+      updatePosition();
+      setIsOpen(true);
     }
   };
 
@@ -60,6 +58,18 @@ export default function ColorPicker({ color, onChange, disabled = false }: Color
         style={{
           top: position.top,
           left: position.left,
+        }}
+        onMouseDown={(e) => {
+          e.stopPropagation();
+          console.log('Color picker mousedown - preventing close');
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          console.log('Color picker click - preventing close');
+        }}
+        onPointerDown={(e) => {
+          e.stopPropagation();
+          console.log('Color picker pointerdown - preventing close');
         }}
       >
         <div className="space-y-3">
@@ -95,7 +105,10 @@ export default function ColorPicker({ color, onChange, disabled = false }: Color
           {/* Close Button */}
           <button
             type="button"
-            onClick={() => setIsOpen(false)}
+            onClick={() => {
+              console.log('Close button clicked - closing picker');
+              setIsOpen(false);
+            }}
             className="w-full px-3 py-1 text-sm bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
           >
             Close
@@ -112,7 +125,7 @@ export default function ColorPicker({ color, onChange, disabled = false }: Color
       <button
         ref={buttonRef}
         type="button"
-        onClick={handleToggle}
+        onClick={handleOpen}
         disabled={disabled}
         className={`w-10 h-10 rounded-lg border-2 border-gray-300 dark:border-gray-600 transition-all duration-200 ${
           disabled 
@@ -120,7 +133,7 @@ export default function ColorPicker({ color, onChange, disabled = false }: Color
             : 'cursor-pointer hover:border-gray-400 dark:hover:border-gray-500 hover:scale-105'
         } ${isOpen ? 'ring-2 ring-blue-500 ring-opacity-50' : ''}`}
         style={{ backgroundColor: hexColor }}
-        title={`Click to ${isOpen ? 'close' : 'open'} color picker - Current: ${hexColor.toUpperCase()}`}
+        title={`${isOpen ? 'Color picker is open - use Close button to close' : 'Click to open color picker'} - Current: ${hexColor.toUpperCase()}`}
       />
 
       {/* Color Picker Portal */}
