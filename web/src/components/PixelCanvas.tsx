@@ -374,6 +374,193 @@ export default function PixelCanvas() {
     }
   };
 
+  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    
+    if (isPanning) {
+      const deltaX = e.clientX - lastPanPoint.x;
+      const deltaY = e.clientY - lastPanPoint.y;
+      const newPan = { x: pan.x + deltaX, y: pan.y + deltaY };
+      setPan(constrainPan(newPan, scale));
+      setLastPanPoint({ x: e.clientX, y: e.clientY });
+    } else if (isDragging && canvasInfo) {
+      const pixelId = getPixelFromMouse(e);
+      if (pixelId !== null) {
+        const x = pixelId % canvasInfo.width;
+        const y = Math.floor(pixelId / canvasInfo.width);
+        
+        if (dragMode === 'line' && dragStart) {
+          // Update line path
+          const linePixels = getLinePixels(dragStart.x, dragStart.y, x, y);
+          setDragPath(linePixels);
+          
+          // Add line pixels to selection
+          const newSelected = new Set(selectedPixels);
+          const newColors = new Map(selectedPixelColors);
+          
+          linePixels.forEach(point => {
+            const id = point.y * canvasInfo.width + point.x;
+            newSelected.add(id);
+            newColors.set(id, selectedColor);
+          });
+          
+          setSelectedPixels(newSelected);
+          setSelectedPixelColors(newColors);
+          
+        } else if (dragMode === 'rectangle' && dragStart) {
+          // Update rectangle end point
+          setDragEnd({ x, y });
+        }
+        
+        // Update hovered pixel for tooltip
+        const pixel = pixels.get(pixelId);
+        if (pixel && pixel.owner !== hoveredOwner) {
+          setHoveredOwner(pixel.owner);
+          
+          // Calculate owner's pixel counts
+          let redCount = 0;
+          let blueCount = 0;
+          pixels.forEach(p => {
+            if (p.owner === pixel.owner) {
+              if (p.team === 0) redCount++;
+              else if (p.team === 1) blueCount++;
+            }
+          });
+          
+          setHoveredOwnerStats({
+            redCount,
+            blueCount,
+            totalCount: redCount + blueCount
+          });
+        } else if (!pixel) {
+          setHoveredOwner(null);
+          setHoveredOwnerStats(null);
+        }
+        
+        setHoveredPixel(pixelId);
+      }
+    } else {
+      // Handle hover for tooltip
+      const pixelId = getPixelFromMouse(e);
+      if (pixelId !== null) {
+        const pixel = pixels.get(pixelId);
+        if (pixel && pixel.owner !== hoveredOwner) {
+          setHoveredOwner(pixel.owner);
+          
+          // Calculate owner's pixel counts
+          let redCount = 0;
+          let blueCount = 0;
+          pixels.forEach(p => {
+            if (p.owner === pixel.owner) {
+              if (p.team === 0) redCount++;
+              else if (p.team === 1) blueCount++;
+            }
+          });
+          
+          setHoveredOwnerStats({
+            redCount,
+            blueCount,
+            totalCount: redCount + blueCount
+          });
+        } else if (!pixel) {
+          setHoveredOwner(null);
+          setHoveredOwnerStats(null);
+        }
+        
+        setHoveredPixel(pixelId);
+      } else {
+        setHoveredPixel(null);
+        setHoveredOwner(null);
+        setHoveredOwnerStats(null);
+      }
+    }
+  };
+
+  const handleMouseUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    
+    if (isPanning) {
+      setIsPanning(false);
+      document.body.style.cursor = '';
+    } else if (isDragging && dragMode === 'rectangle' && dragStart && dragEnd && canvasInfo) {
+      // Finalize rectangle selection
+      const startX = Math.min(dragStart.x, dragEnd.x);
+      const endX = Math.max(dragStart.x, dragEnd.x);
+      const startY = Math.min(dragStart.y, dragEnd.y);
+      const endY = Math.max(dragStart.y, dragEnd.y);
+      
+      const newSelected = new Set(selectedPixels);
+      const newColors = new Map(selectedPixelColors);
+      
+      for (let y = startY; y <= endY; y++) {
+        for (let x = startX; x <= endX; x++) {
+          if (x >= 0 && x < canvasInfo.width && y >= 0 && y < canvasInfo.height) {
+            const id = y * canvasInfo.width + x;
+            newSelected.add(id);
+            newColors.set(id, selectedColor);
+          }
+        }
+      }
+      
+      setSelectedPixels(newSelected);
+      setSelectedPixelColors(newColors);
+    }
+    
+    // Reset drag state
+    setIsDragging(false);
+    setDragStart(null);
+    setDragEnd(null);
+    setDragPath([]);
+  };
+
+  const handleMouseLeave = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    // Reset drag state when mouse leaves canvas
+    setIsDragging(false);
+    setDragStart(null);
+    setDragEnd(null);
+    setDragPath([]);
+    setHoveredPixel(null);
+    setHoveredOwner(null);
+    setHoveredOwnerStats(null);
+    
+    if (isPanning) {
+      setIsPanning(false);
+      document.body.style.cursor = '';
+    }
+  };
+
+  // Bresenham's line algorithm for pixel-perfect lines
+  const getLinePixels = (x0: number, y0: number, x1: number, y1: number): Array<{ x: number, y: number }> => {
+    const points: Array<{ x: number, y: number }> = [];
+    
+    const dx = Math.abs(x1 - x0);
+    const dy = Math.abs(y1 - y0);
+    const sx = x0 < x1 ? 1 : -1;
+    const sy = y0 < y1 ? 1 : -1;
+    let err = dx - dy;
+    
+    let x = x0;
+    let y = y0;
+    
+    while (true) {
+      points.push({ x, y });
+      
+      if (x === x1 && y === y1) break;
+      
+      const e2 = 2 * err;
+      if (e2 > -dy) {
+        err -= dy;
+        x += sx;
+      }
+      if (e2 < dx) {
+        err += dx;
+        y += sy;
+      }
+    }
+    
+    return points;
+  };
+
   // Simplified canvas drawing function
   const drawCanvas = useCallback(() => {
     const canvas = canvasRef.current;
@@ -459,7 +646,40 @@ export default function PixelCanvas() {
       }
     });
 
-  }, [canvasInfo, pixels, selectedPixels, selectedPixelColors, hoveredOwner, scale, pan, initialPixelsLoaded]);
+    // Draw rectangle selection preview
+    if (isDragging && dragMode === 'rectangle' && dragStart && dragEnd) {
+      const startX = Math.min(dragStart.x, dragEnd.x);
+      const endX = Math.max(dragStart.x, dragEnd.x);
+      const startY = Math.min(dragStart.y, dragEnd.y);
+      const endY = Math.max(dragStart.y, dragEnd.y);
+      
+      // Fill rectangle preview
+      for (let y = startY; y <= endY; y++) {
+        for (let x = startX; x <= endX; x++) {
+          if (x >= visibleStartX && x <= visibleEndX && y >= visibleStartY && y <= visibleEndY) {
+            const pixelX = x * scale + pan.x;
+            const pixelY = y * scale + pan.y;
+            
+            ctx.fillStyle = `#${selectedColor.toString(16).padStart(6, '0')}`;
+            ctx.fillRect(pixelX, pixelY, scale, scale);
+          }
+        }
+      }
+      
+      // Draw rectangle outline
+      if (scale >= 1) {
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(
+          startX * scale + pan.x,
+          startY * scale + pan.y,
+          (endX - startX + 1) * scale,
+          (endY - startY + 1) * scale
+        );
+      }
+    }
+
+  }, [canvasInfo, pixels, selectedPixels, selectedPixelColors, hoveredOwner, scale, pan, initialPixelsLoaded, isDragging, dragMode, dragStart, dragEnd, selectedColor]);
 
   // Draw canvas when dependencies change
   useEffect(() => {
@@ -566,6 +786,10 @@ export default function PixelCanvas() {
           height={typeof window !== 'undefined' ? window.innerHeight - 200 : 800}
           className="cursor-pointer select-none"
           onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseLeave}
+          onContextMenu={(e) => e.preventDefault()}
           style={{ display: 'block', width: '100%', height: '100%' }}
         />
         
@@ -607,6 +831,45 @@ export default function PixelCanvas() {
           >
             Fit
           </button>
+        </div>
+
+        {/* Pixel Tooltip */}
+        {hoveredPixel !== null && hoveredOwnerStats && (
+          <div className="absolute pointer-events-none bg-black/80 text-white text-xs rounded-lg px-3 py-2 z-10"
+               style={{
+                 left: '50%',
+                 top: '20px',
+                 transform: 'translateX(-50%)'
+               }}>
+            <div className="space-y-1">
+              <div>Owner: {hoveredOwner ? `${hoveredOwner.slice(0, 6)}...${hoveredOwner.slice(-4)}` : 'Unknown'}</div>
+              <div className="flex gap-4">
+                <span>🔴 {hoveredOwnerStats.redCount}</span>
+                <span>🔵 {hoveredOwnerStats.blueCount}</span>
+                <span>Total: {hoveredOwnerStats.totalCount}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Hover Instructions */}
+        <div className="absolute bottom-4 left-4 group">
+          <div className="w-8 h-8 bg-black/60 hover:bg-black/80 text-white rounded-full flex items-center justify-center cursor-help transition-colors">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div className="absolute bottom-full left-0 mb-2 w-80 bg-black/90 text-white text-sm rounded-lg px-4 py-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
+            <div className="space-y-2">
+              <div className="font-semibold text-blue-300">Canvas Controls:</div>
+              <div>🖱️ <strong>Click:</strong> Select single pixel</div>
+              <div>🖱️ <strong>Click + Drag:</strong> Draw lines</div>
+              <div>⇧ <strong>Shift + Drag:</strong> Rectangle selection</div>
+              <div>🖲️ <strong>Middle Click + Drag:</strong> Pan canvas</div>
+              <div>🔄 <strong>Scroll:</strong> Zoom in/out</div>
+              <div>👆 <strong>Hover:</strong> See pixel owner info</div>
+            </div>
+          </div>
         </div>
       </div>
 
