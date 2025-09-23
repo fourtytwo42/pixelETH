@@ -15,7 +15,6 @@ export default function ColorPicker({ color, onChange, disabled = false }: Color
   const [hexColor, setHexColor] = useState(`#${color.toString(16).padStart(6, '0')}`);
   const [position, setPosition] = useState({ top: 0, left: 0 });
   const buttonRef = useRef<HTMLButtonElement>(null);
-  const pickerRef = useRef<HTMLDivElement>(null);
 
   // Update hex color when prop changes
   useEffect(() => {
@@ -33,46 +32,7 @@ export default function ColorPicker({ color, onChange, disabled = false }: Color
     }
   };
 
-  // Close picker when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Element;
-      
-      // Check if the click is inside the picker container
-      const isInsidePicker = pickerRef.current?.contains(target);
-      const isInsideButton = buttonRef.current?.contains(target);
-      
-      // More comprehensive check for react-colorful and related elements
-      const isColorfulElement = target?.closest?.('[class*="react-colorful"]') ||
-                                target?.closest?.('[class*="picker"]') ||
-                                target?.classList?.contains('react-colorful__hue') ||
-                                target?.classList?.contains('react-colorful__saturation') ||
-                                target?.classList?.contains('react-colorful__pointer') ||
-                                target?.parentElement?.classList?.contains('react-colorful__hue') ||
-                                target?.parentElement?.classList?.contains('react-colorful__saturation');
-      
-      // Also check if target is within our portal div by checking z-index or specific classes
-      const isWithinPortal = target?.closest?.('[style*="z-index: 10000"]') ||
-                             target?.closest?.('.fixed.z-\\[10000\\]');
-      
-      // Only close if the click is truly outside all related elements
-      if (!isInsidePicker && !isInsideButton && !isColorfulElement && !isWithinPortal) {
-        setIsOpen(false);
-      }
-    };
-
-    if (isOpen) {
-      // Use a slight delay to ensure the DOM is fully rendered
-      const timeoutId = setTimeout(() => {
-        document.addEventListener('mousedown', handleClickOutside, false);
-      }, 100);
-      
-      return () => {
-        clearTimeout(timeoutId);
-        document.removeEventListener('mousedown', handleClickOutside, false);
-      };
-    }
-  }, [isOpen]);
+  // No click-outside functionality - only close via Close button or toggle button
 
   const handleColorChange = (newHexColor: string) => {
     setHexColor(newHexColor);
@@ -96,18 +56,10 @@ export default function ColorPicker({ color, onChange, disabled = false }: Color
     
     return createPortal(
       <div 
-        ref={pickerRef}
         className="fixed z-[10000] p-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-xl"
         style={{
           top: position.top,
           left: position.left,
-        }}
-        onMouseDown={(e) => {
-          // Only prevent event from reaching document-level listeners
-          // Don't prevent default or stop propagation within the picker
-        }}
-        onClick={(e) => {
-          // Allow normal click behavior within the picker
         }}
       >
         <div className="space-y-3">
