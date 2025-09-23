@@ -389,23 +389,36 @@ export default function PixelCanvas() {
         const x = pixelId % canvasInfo.width;
         const y = Math.floor(pixelId / canvasInfo.width);
         
-        if (dragMode === 'line' && dragStart) {
-          // Update line path
-          const linePixels = getLinePixels(dragStart.x, dragStart.y, x, y);
-          setDragPath(linePixels);
+        if (dragMode === 'line') {
+          // Add current pixel to the path if it's new
+          const currentPath = [...dragPath];
+          const lastPoint = currentPath[currentPath.length - 1];
           
-          // Add line pixels to selection
-          const newSelected = new Set(selectedPixels);
-          const newColors = new Map(selectedPixelColors);
-          
-          linePixels.forEach(point => {
-            const id = point.y * canvasInfo.width + point.x;
-            newSelected.add(id);
-            newColors.set(id, selectedColor);
-          });
-          
-          setSelectedPixels(newSelected);
-          setSelectedPixelColors(newColors);
+          if (!lastPoint || lastPoint.x !== x || lastPoint.y !== y) {
+            // If we have a previous point, draw a line to connect them smoothly
+            if (lastPoint) {
+              const connectingPixels = getLinePixels(lastPoint.x, lastPoint.y, x, y);
+              // Skip the first pixel to avoid duplicates
+              currentPath.push(...connectingPixels.slice(1));
+            } else {
+              currentPath.push({ x, y });
+            }
+            
+            setDragPath(currentPath);
+            
+            // Add all path pixels to selection
+            const newSelected = new Set(selectedPixels);
+            const newColors = new Map(selectedPixelColors);
+            
+            currentPath.forEach(point => {
+              const id = point.y * canvasInfo.width + point.x;
+              newSelected.add(id);
+              newColors.set(id, selectedColor);
+            });
+            
+            setSelectedPixels(newSelected);
+            setSelectedPixelColors(newColors);
+          }
           
         } else if (dragMode === 'rectangle' && dragStart) {
           // Update rectangle end point
@@ -863,7 +876,7 @@ export default function PixelCanvas() {
             <div className="space-y-2">
               <div className="font-semibold text-blue-300">Canvas Controls:</div>
               <div>🖱️ <strong>Click:</strong> Select single pixel</div>
-              <div>🖱️ <strong>Click + Drag:</strong> Draw lines</div>
+              <div>🖱️ <strong>Click + Drag:</strong> Freehand drawing</div>
               <div>⇧ <strong>Shift + Drag:</strong> Rectangle selection</div>
               <div>🖲️ <strong>Middle Click + Drag:</strong> Pan canvas</div>
               <div>🔄 <strong>Scroll:</strong> Zoom in/out</div>
